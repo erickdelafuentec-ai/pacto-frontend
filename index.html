@@ -5,50 +5,256 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sistema PACTO</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js">
+// ════════════════════════════════════════════════════════════
+// LICENCIAS MÉDICAS
+// ════════════════════════════════════════════════════════════
+var licenciasData = [];
+try { licenciasData = JSON.parse(localStorage.getItem('licenciasData')||'[]'); } catch(e) {}
+
+function initLicencias() {
+  // Populate funcionario select
+  var sel = document.getElementById('licFuncionario');
+  if (sel) {
+    sel.innerHTML = '<option value="">— Seleccione funcionario —</option>';
+    var staff = (typeof PERSONAL_PACTO !== 'undefined') ? PERSONAL_PACTO : getUsuarios().map(function(u){ return {id:u.username, nombre:u.nombre+' '+u.ap_pat, rut:u.rut||'', cargo:u.cargo||''}; });
+    staff.forEach(function(p){
+      var o = document.createElement('option');
+      o.value = p.id; o.textContent = p.nombre + ' — ' + p.cargo;
+      sel.appendChild(o);
+    });
+  }
+  renderLicencias();
+}
+
+function licCargarDatos() {
+  var sel = document.getElementById('licFuncionario');
+  if (!sel || !sel.value) return;
+  var staff = (typeof PERSONAL_PACTO !== 'undefined') ? PERSONAL_PACTO : [];
+  var prof = staff.find(function(p){ return p.id === sel.value; });
+  if (prof) {
+    var runEl = document.getElementById('licRun');
+    if (runEl) runEl.value = prof.rut || '';
+  }
+}
+
+function licCalcularDias() {
+  var fi = (document.getElementById('licFechaInicio')||{}).value;
+  var ft = (document.getElementById('licFechaTermino')||{}).value;
+  if (fi && ft) {
+    var d1 = new Date(fi), d2 = new Date(ft);
+    var dias = Math.round((d2-d1)/(1000*60*60*24)) + 1;
+    var el = document.getElementById('licDias');
+    if (el) el.value = dias > 0 ? dias : 0;
+  }
+}
+
+function guardarLicencia() {
+  var sel    = document.getElementById('licFuncionario');
+  var nombre = sel ? sel.options[sel.selectedIndex].text.split(' — ')[0] : '';
+  var run    = (document.getElementById('licRun')||{}).value||'';
+  var fi     = (document.getElementById('licFechaInicio')||{}).value||'';
+  var ft     = (document.getElementById('licFechaTermino')||{}).value||'';
+  var dias   = (document.getElementById('licDias')||{}).value||0;
+  var tipo   = (document.getElementById('licTipo')||{}).value||'';
+  var folio  = (document.getElementById('licFolio')||{}).value||'';
+  var obs    = (document.getElementById('licObs')||{}).value||'';
+  if (!nombre || nombre.includes('Seleccione')) { alert('Seleccione un funcionario.'); return; }
+  if (!fi || !ft) { alert('Ingrese fechas de inicio y término.'); return; }
+  var reg = { id:Date.now(), nombre:nombre, run:run, fi:fi, ft:ft, dias:parseInt(dias), tipo:tipo, folio:folio, obs:obs, registrado: new Date().toLocaleDateString('es-CL') };
+  licenciasData.unshift(reg);
+  localStorage.setItem('licenciasData', JSON.stringify(licenciasData));
+  renderLicencias();
+  limpiarLicencia();
+  alert('✅ Licencia registrada correctamente.');
+}
+
+function limpiarLicencia() {
+  ['licFuncionario','licFechaInicio','licFechaTermino','licDias','licFolio','licObs'].forEach(function(id){
+    var el = document.getElementById(id); if (el) el.value = '';
+  });
+  var runEl = document.getElementById('licRun'); if (runEl) runEl.value = '';
+}
+
+function renderLicencias() {
+  var el = document.getElementById('licListado'); if (!el) return;
+  var busca  = ((document.getElementById('licBusca')||{}).value||'').toLowerCase();
+  var tipo   = (document.getElementById('licFiltroTipo')||{}).value||'';
+  var data   = licenciasData.filter(function(r){
+    if (busca && !(r.nombre||'').toLowerCase().includes(busca)) return false;
+    if (tipo  && r.tipo !== tipo) return false;
+    return true;
+  });
+  if (!data.length) {
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--gris-tex);font-size:13px">No hay licencias registradas.</div>';
+    var stats = document.getElementById('licStats'); if (stats) stats.textContent = '';
+    return;
+  }
+  var header = '<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr 60px;gap:8px;padding:8px 14px;background:rgba(138,154,46,0.1);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--gris-tex)">' +
+    '<div>Funcionario</div><div>Tipo</div><div>Inicio</div><div>Término</div><div>Días</div><div></div></div>';
+  var rows = data.map(function(r){
+    return '<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr 60px;gap:8px;padding:10px 14px;border-bottom:1px solid rgba(138,154,46,0.08);font-size:12px;align-items:center">' +
+      '<div><strong style="color:var(--white)">' + r.nombre + '</strong><div style="font-size:10px;color:var(--gris-tex)">' + (r.run||'—') + '</div></div>' +
+      '<div style="color:var(--muted)">' + r.tipo + '</div>' +
+      '<div>' + r.fi + '</div>' +
+      '<div>' + r.ft + '</div>' +
+      '<div style="font-weight:700;color:var(--acc2)">' + r.dias + ' días</div>' +
+      '<div><button class="btn btn-sm btn-danger" onclick="eliminarLicencia(' + r.id + ')">✕</button></div>' +
+    '</div>';
+  }).join('');
+  el.innerHTML = header + rows;
+  var totalDias = data.reduce(function(s,r){ return s+r.dias; }, 0);
+  var stats = document.getElementById('licStats');
+  if (stats) stats.innerHTML = '<strong>' + data.length + '</strong> licencias · <strong>' + totalDias + '</strong> días totales de ausentismo';
+}
+
+function eliminarLicencia(id) {
+  if (!confirm('¿Eliminar esta licencia?')) return;
+  licenciasData = licenciasData.filter(function(r){ return r.id !== id; });
+  localStorage.setItem('licenciasData', JSON.stringify(licenciasData));
+  renderLicencias();
+}
+
+// ── guardarPermiso and historial ──────────────────────────────
+var permisosHistorial = [];
+try { permisosHistorial = JSON.parse(localStorage.getItem('permisosHistorial')||'[]'); } catch(e) {}
+
+function togglePermHistorial(btn) {
+  var div = document.getElementById('permHistorialContent');
+  if (!div) return;
+  if (div.style.display === 'none') {
+    div.style.display = 'block';
+    if (btn) btn.textContent = 'Ocultar';
+    renderPermisosHistorial();
+  } else {
+    div.style.display = 'none';
+    if (btn) btn.textContent = 'Ver historial';
+  }
+}
+
+function guardarPermiso() {
+  var nombre = (document.getElementById('perm_nombre')||{}).value||'';
+  var run    = (document.getElementById('perm_run')||{}).value||'';
+  var cargo  = (document.getElementById('perm_cargo')||{}).value||'';
+  var tipo   = (typeof tipoPermisoActual !== 'undefined') ? tipoPermisoActual : '';
+  var cfg    = (typeof PERMISOS_CONFIG !== 'undefined' && PERMISOS_CONFIG[tipo]) ? PERMISOS_CONFIG[tipo] : {};
+  if (!nombre) { alert('Complete el nombre del funcionario antes de guardar.'); return; }
+  var reg = { id:Date.now(), tipo:tipo, titulo:cfg.titulo||tipo, nombre:nombre, run:run, cargo:cargo, fecha:new Date().toLocaleDateString('es-CL') };
+  permisosHistorial.unshift(reg);
+  if (permisosHistorial.length > 100) permisosHistorial.pop();
+  localStorage.setItem('permisosHistorial', JSON.stringify(permisosHistorial));
+  renderPermisosHistorial();
+  alert('✅ Permiso guardado correctamente.');
+}
+
+function renderPermisosHistorial() {
+  var el = document.getElementById('permisosHistorialLista'); if (!el) return;
+  if (!permisosHistorial.length) {
+    el.innerHTML = '<div style="color:var(--gris-tex);font-size:13px;padding:12px">No hay permisos guardados aún.</div>';
+    return;
+  }
+  el.innerHTML = permisosHistorial.slice(0,20).map(function(r){
+    return '<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid rgba(138,154,46,0.1);font-size:13px">' +
+      '<div style="flex:1"><strong style="color:var(--white)">' + r.nombre + '</strong>' +
+      '<div style="font-size:11px;color:var(--gris-tex)">' + r.titulo + ' · ' + r.fecha + '</div></div>' +
+      '<span style="font-size:11px;color:var(--muted)">' + (r.run||'—') + '</span></div>';
+  }).join('');
+}
+
+// Dashboard ausentismo render
+function dashRenderAusentismo() {
+  var data = licenciasData;
+  if (!data.length) {
+    ['cLicProf','cLicTipo','cLicMes'].forEach(function(id){
+      var el = document.getElementById(id); if (!el) return;
+      dDestroy(id);
+      el.parentElement.innerHTML = '<div class="dcard-title">Sin datos de licencias aún</div><div style="color:var(--gris-tex);font-size:13px;padding:20px 0">Registra licencias en el módulo Licencias Médicas.</div>';
+    });
+    return;
+  }
+  // By prof
+  var byProf = {};
+  data.forEach(function(r){ byProf[r.nombre] = (byProf[r.nombre]||0) + r.dias; });
+  var profArr = Object.keys(byProf).map(function(k){ return {k:k,v:byProf[k]}; }).sort(function(a,b){ return b.v-a.v; }).slice(0,8);
+  dChart('cLicProf','bar', profArr.map(function(e){ return e.k.split(' ').slice(0,2).join(' '); }), [{data:profArr.map(function(e){ return e.v; }), backgroundColor:'#c45c3a', borderRadius:3}], {plugins:{legend:{display:false}},indexAxis:'y'});
+  // By type
+  var byTipo = {};
+  data.forEach(function(r){ byTipo[r.tipo] = (byTipo[r.tipo]||0) + 1; });
+  var tipoArr = Object.keys(byTipo).map(function(k){ return {k:k,v:byTipo[k]}; });
+  dChart('cLicTipo','doughnut', tipoArr.map(function(e){ return e.k; }), [{data:tipoArr.map(function(e){ return e.v; }), backgroundColor:['#c45c3a','#8a9a2e','#5a8a6e','#c8902a','#6a9a4e','#8a6a9a']}]);
+  // By month
+  var byMes = {};
+  data.forEach(function(r){ var m = (r.fi||'').slice(0,7); if(m) byMes[m] = (byMes[m]||0) + r.dias; });
+  var mesArr = Object.keys(byMes).sort().map(function(k){ return {k:k,v:byMes[k]}; });
+  dChart('cLicMes','bar', mesArr.map(function(e){ return e.k; }), [{data:mesArr.map(function(e){ return e.v; }), backgroundColor:'#8a9a2e', borderRadius:3, label:'Días'}], {plugins:{legend:{display:false}}});
+  // Summary
+  var totalDias = data.reduce(function(s,r){ return s+r.dias; }, 0);
+  var resEl = document.getElementById('dLicResumen');
+  if (resEl) resEl.innerHTML = [
+    {lbl:'Total licencias', val:data.length, color:'#c45c3a'},
+    {lbl:'Total días', val:totalDias, color:'#8a9a2e'},
+    {lbl:'Funcionarios afectados', val:Object.keys(byProf).length, color:'#5a8a6e'},
+    {lbl:'Promedio días/licencia', val:data.length ? Math.round(totalDias/data.length) : 0, color:'#c8902a'}
+  ].map(function(s){
+    return '<div style="padding:12px 0;border-bottom:1px solid rgba(138,154,46,0.1)">' +
+      '<div style="font-size:28px;font-weight:700;color:' + s.color + '">' + s.val + '</div>' +
+      '<div style="font-size:11px;color:var(--gris-tex);text-transform:uppercase;letter-spacing:0.8px">' + s.lbl + '</div></div>';
+  }).join('');
+  // Last licenses list
+  var licEl = document.getElementById('dLicLista');
+  if (licEl) licEl.innerHTML = data.slice(0,10).map(function(r){
+    return '<div style="display:flex;gap:12px;padding:9px 14px;border-bottom:1px solid rgba(138,154,46,0.08);font-size:12px">' +
+      '<div style="flex:1"><strong>' + r.nombre.split(' ').slice(0,2).join(' ') + '</strong> · ' + r.tipo + '</div>' +
+      '<div style="color:var(--gris-tex)">' + r.fi + ' → ' + r.ft + '</div>' +
+      '<div style="color:#c45c3a;font-weight:700">' + r.dias + 'd</div></div>';
+  }).join('');
+}
+
+
+</script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
   :root {
-    /* Core purple palette */
-    --p1:  #0d0820;    /* deepest bg */
-    --p2:  #130d2e;    /* bg */
-    --p3:  #1a1040;    /* surface */
-    --p4:  #231558;    /* surface raised */
-    --p5:  #2e1c7a;    /* border accent */
-    --acc: #7c3aed;    /* primary violet */
-    --acc2:#a855f7;    /* lighter violet */
-    --acc3:#c084fc;    /* lavender */
-    --glow:#7c3aed44;  /* glow color */
-    --cyan:#06b6d4;    /* accent cyan */
-    --pink:#ec4899;    /* accent pink */
-    --green:#10b981;   /* accent green */
-    --amber:#f59e0b;   /* accent amber */
-    --white:#f1eeff;   /* off-white */
-    --muted:#8b7db8;   /* muted text */
-    --border:rgba(124,58,237,0.25);
+    /* Fluidbook-inspired: dark olive/charcoal + warm cream accents */
+    --p1:  #1a1a14;    /* deep charcoal-olive bg */
+    --p2:  #222218;    /* bg */
+    --p3:  #2d2d22;    /* surface */
+    --p4:  #38382a;    /* surface raised */
+    --p5:  #4a4a36;    /* border */
+    --acc: #8a9a2e;    /* olive green primary */
+    --acc2:#a8bc35;    /* lighter olive */
+    --acc3:#c8d85a;    /* bright olive */
+    --glow:#8a9a2e44;
+    --cyan:#5a8a6e;    /* muted teal */
+    --pink:#c45c3a;    /* warm terracotta */
+    --green:#6a9a4e;   /* forest green */
+    --amber:#c8902a;   /* warm amber */
+    --white:#f2eedc;   /* warm cream */
+    --muted:#8a8a6e;   /* olive muted */
+    --border:rgba(138,154,46,0.3);
 
-    /* compat vars for existing system */
-    --negro:     #f1eeff;
-    --blanco:    rgba(19,13,46,0.85);
-    --crema:     rgba(26,16,64,0.6);
-    --gris-claro:rgba(35,21,88,0.5);
-    --gris-med:  rgba(124,58,237,0.2);
-    --gris-tex:  #8b7db8;
-    --rosa:      #a855f7;
-    --rosa-claro:rgba(168,85,247,0.15);
-    --rosa-dark: #7c3aed;
-    --text3:     #5a4d80;
-    --accent:    #a855f7;
-    --accent2:   #c084fc;
-    --verde:     #10b981;
-    --verde-claro:rgba(16,185,129,0.12);
-    --rojo:      #ec4899;
-    --rojo-claro:rgba(236,72,153,0.12);
-    --amarillo:  #f59e0b;
-    --amarillo-claro:rgba(245,158,11,0.12);
+    /* compat vars */
+    --negro:     #f2eedc;
+    --blanco:    rgba(34,34,24,0.92);
+    --crema:     rgba(45,45,34,0.7);
+    --gris-claro:rgba(56,56,42,0.6);
+    --gris-med:  rgba(138,154,46,0.2);
+    --gris-tex:  #8a8a6e;
+    --rosa:      #a8bc35;
+    --rosa-claro:rgba(168,188,53,0.15);
+    --rosa-dark: #8a9a2e;
+    --text3:     #5a5a46;
+    --accent:    #a8bc35;
+    --accent2:   #c8d85a;
+    --verde:     #6a9a4e;
+    --verde-claro:rgba(106,154,78,0.12);
+    --rojo:      #c45c3a;
+    --rojo-claro:rgba(196,92,58,0.12);
+    --amarillo:  #c8902a;
+    --amarillo-claro:rgba(200,144,42,0.12);
     --radius:    12px;
-    --shadow:    0 8px 40px rgba(0,0,0,0.5);
+    --shadow:    0 8px 40px rgba(0,0,0,0.6);
   }
 
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -67,10 +273,10 @@
     position: fixed;
     inset: 0;
     background:
-      radial-gradient(ellipse 70% 60% at 10% 20%, rgba(124,58,237,0.35) 0%, transparent 60%),
-      radial-gradient(ellipse 50% 40% at 90% 80%, rgba(168,85,247,0.2) 0%, transparent 55%),
-      radial-gradient(ellipse 40% 50% at 50% 50%, rgba(6,182,212,0.08) 0%, transparent 60%),
-      linear-gradient(135deg, #0d0820 0%, #130d2e 50%, #0f0a25 100%);
+      radial-gradient(ellipse 60% 50% at 15% 25%, rgba(138,154,46,0.18) 0%, transparent 60%),
+      radial-gradient(ellipse 50% 40% at 85% 75%, rgba(106,154,78,0.12) 0%, transparent 55%),
+      radial-gradient(ellipse 40% 50% at 50% 50%, rgba(90,138,110,0.06) 0%, transparent 60%),
+      linear-gradient(145deg, #161610 0%, #1a1a14 40%, #1e1e18 100%);
     z-index: 0;
     pointer-events: none;
   }
@@ -80,7 +286,7 @@
     position: fixed;
     width: 700px; height: 700px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(124,58,237,0.12) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(138,154,46,0.08) 0%, transparent 70%);
     top: -200px; right: -200px;
     animation: floatBlob 15s ease-in-out infinite;
     z-index: 0; pointer-events: none;
@@ -109,7 +315,7 @@
     position: sticky;
     top: 0;
     z-index: 100;
-    box-shadow: 0 4px 30px rgba(124,58,237,0.15);
+    box-shadow: 0 4px 30px rgba(0,0,0,0.4), 0 1px 0 rgba(138,154,46,0.2);
   }
 
   .header-logo {
@@ -127,7 +333,7 @@
     content: '';
     display: inline-block;
     width: 30px; height: 30px;
-    background: linear-gradient(135deg, var(--acc), var(--cyan));
+    background: linear-gradient(135deg, #8a9a2e, #5a8a6e);
     border-radius: 8px;
     flex-shrink: 0;
     box-shadow: 0 0 16px rgba(124,58,237,0.6);
@@ -164,23 +370,23 @@
     display: flex; align-items: center; justify-content: center;
     overflow: hidden;
     background:
-      radial-gradient(ellipse 80% 70% at 15% 40%, rgba(124,58,237,0.45) 0%, transparent 60%),
-      radial-gradient(ellipse 60% 50% at 85% 65%, rgba(6,182,212,0.2) 0%, transparent 55%),
-      linear-gradient(135deg, #0d0820 0%, #130d2e 60%, #0f0a25 100%);
+      radial-gradient(ellipse 80% 70% at 15% 40%, rgba(138,154,46,0.3) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 50% at 85% 65%, rgba(90,138,110,0.18) 0%, transparent 55%),
+      linear-gradient(145deg, #141410 0%, #1a1a14 60%, #1c1c16 100%);
   }
 
   /* Floating orbs */
   #loginScreen::before {
     content:''; position:absolute;
     width:400px; height:400px; border-radius:50%;
-    background:radial-gradient(circle, rgba(124,58,237,0.3) 0%, transparent 70%);
+    background:radial-gradient(circle, rgba(138,154,46,0.25) 0%, transparent 70%);
     top:-80px; left:-80px;
     animation:floatBlob 12s ease-in-out infinite;
   }
   #loginScreen::after {
     content:''; position:absolute;
     width:300px; height:300px; border-radius:50%;
-    background:radial-gradient(circle, rgba(6,182,212,0.2) 0%, transparent 70%);
+    background:radial-gradient(circle, rgba(90,138,110,0.2) 0%, transparent 70%);
     bottom:-60px; right:-60px;
     animation:floatBlob 16s ease-in-out infinite reverse;
   }
@@ -273,11 +479,11 @@
   }
 
   .btn-primary {
-    background:linear-gradient(135deg, var(--acc), var(--acc2));
-    color:white;
-    box-shadow:0 4px 20px rgba(124,58,237,0.5);
+    background:linear-gradient(135deg, #8a9a2e, #a8bc35);
+    color:#1a1a14;
+    box-shadow:0 4px 20px rgba(138,154,46,0.4);
   }
-  .btn-primary:hover { transform:translateY(-1px); box-shadow:0 8px 28px rgba(124,58,237,0.7); }
+  .btn-primary:hover { transform:translateY(-1px); box-shadow:0 8px 28px rgba(138,154,46,0.6); }
 
   .btn-secondary {
     background:rgba(35,21,88,0.7);
@@ -363,10 +569,10 @@
   .menu-card:hover {
     transform:translateY(-5px) scale(1.02);
     border-color:rgba(255,255,255,0.9);
-    box-shadow:0 24px 60px rgba(0,0,0,0.4), 0 0 40px rgba(124,58,237,0.35);
+    box-shadow:0 24px 60px rgba(0,0,0,0.5), 0 0 30px rgba(138,154,46,0.25);
   }
-  .menu-card:hover::before { opacity:0.06; }
-  .menu-card:hover .card-title { color:var(--acc) !important; }
+  .menu-card:hover::before { opacity:0.04; }
+  .menu-card:hover .card-title { color:#8a9a2e !important; }
 
   .menu-card.azul    { border-top:3px solid var(--cyan); }
   .menu-card.verde   { border-top:3px solid var(--green); }
@@ -550,8 +756,8 @@
   /* ── SCROLLBAR ───────────────────────────────────────── */
   ::-webkit-scrollbar { width:5px; height:5px; }
   ::-webkit-scrollbar-track { background:rgba(13,8,32,0.5); }
-  ::-webkit-scrollbar-thumb { background:rgba(124,58,237,0.4); border-radius:3px; }
-  ::-webkit-scrollbar-thumb:hover { background:rgba(168,85,247,0.6); }
+  ::-webkit-scrollbar-thumb { background:rgba(138,154,46,0.4); border-radius:3px; }
+  ::-webkit-scrollbar-thumb:hover { background:rgba(168,188,53,0.6); }
 
   /* ── RESPONSIVE ──────────────────────────────────────── */
   @media(max-width:768px){
@@ -1280,6 +1486,11 @@
         <div class="card-title" style="color:#7c3aed">Personal PACTO</div>
         <div class="card-desc">Solicitudes de permisos administrativos, feriado legal y más.</div>
       </div>
+      <div class="menu-card" style="border-top:4px solid #c45c3a" onclick="goTo('screenLicencias')">
+        <div class="card-icon">🏥</div>
+        <div class="card-title" style="color:#c45c3a">Licencias Médicas</div>
+        <div class="card-desc">Registro y seguimiento de licencias médicas del equipo PACTO.</div>
+      </div>
       <div class="menu-card" style="border-top:4px solid #06b6d4" onclick="goTo('screenActas')">
         <div class="card-icon">📋</div>
         <div class="card-title" style="color:#06b6d4">Actas de Reunión</div>
@@ -1723,6 +1934,17 @@
     <button class="back-btn" onclick="goTo('screenMenu')">← Volver al Menú</button>
     <div class="screen-title" style="color:#7c3aed;margin-top:16px">🗂️ Personal PACTO</div>
     <div class="screen-subtitle">Solicitudes de permisos administrativos y documentos oficiales.</div>
+    <!-- Historial de permisos guardados -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+        <span>📋 Historial de Permisos Guardados</span>
+        <button class="btn btn-sm btn-secondary" onclick="togglePermHistorial(this)">Ver historial</button>
+      </div>
+      <div id="permHistorialContent" style="display:none">
+        <div id="permisosHistorialLista"></div>
+      </div>
+    </div>
+
     <!-- Selector tipo solicitud -->
     <div class="card" id="cardSelectorPermiso">
       <div class="card-header">📋 Seleccione el tipo de solicitud</div>
@@ -1773,6 +1995,7 @@
       <div id="permisoError" class="alert alert-error hidden"></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn btn-primary" onclick="generarWordPermiso()">📄 Generar Word</button>
+        <button class="btn btn-success" onclick="guardarPermiso()">💾 Guardar</button>
         <button class="btn btn-secondary" onclick="mostrarPreviewPermiso()">👁 Vista previa</button>
       </div>
     </div>
@@ -3221,6 +3444,70 @@ const PERMISOS_CONFIG = {
 };
 
 
+
+// ── Permisos: guardar y mostrar historial ─────────────────────
+var permisosHistorial = [];
+try { permisosHistorial = JSON.parse(localStorage.getItem('permisosHistorial')||'[]'); } catch(e) {}
+
+function togglePermHistorial(btn) {
+  var div = document.getElementById('permHistorialContent');
+  if (!div) return;
+  if (div.style.display === 'none') {
+    div.style.display = 'block';
+    if (btn) btn.textContent = 'Ocultar';
+    renderPermisosHistorial();
+  } else {
+    div.style.display = 'none';
+    if (btn) btn.textContent = 'Ver historial';
+  }
+}
+
+function guardarPermiso() {
+  var nombre = (document.getElementById('perm_nombre')||{}).value||'';
+  var run    = (document.getElementById('perm_run')||{}).value||'';
+  var cargo  = (document.getElementById('perm_cargo')||{}).value||'';
+  var tipo   = tipoPermisoActual||'';
+  var cfg    = PERMISOS_CONFIG[tipo]||{};
+  if (!nombre) { alert('Complete el nombre del funcionario antes de guardar.'); return; }
+  var reg = {
+    id:        Date.now(),
+    tipo:      tipo,
+    titulo:    cfg.titulo||tipo,
+    nombre:    nombre,
+    run:       run,
+    cargo:     cargo,
+    fecha:     new Date().toLocaleDateString('es-CL'),
+    fechaISO:  new Date().toISOString().split('T')[0],
+    datos:     {}
+  };
+  // Capture extra fields
+  ['perm_fecha_inicio','perm_fecha_fin','perm_dias','perm_descripcion','perm_jefe','perm_jefe_cargo'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) reg.datos[id] = el.value||'';
+  });
+  permisosHistorial.unshift(reg);
+  if (permisosHistorial.length > 100) permisosHistorial.pop();
+  localStorage.setItem('permisosHistorial', JSON.stringify(permisosHistorial));
+  renderPermisosHistorial();
+  alert('✅ Permiso guardado correctamente.');
+}
+
+function renderPermisosHistorial() {
+  var el = document.getElementById('permisosHistorialLista');
+  if (!el) return;
+  if (!permisosHistorial.length) {
+    el.innerHTML = '<div style="color:var(--gris-tex);font-size:13px;padding:12px">No hay permisos guardados aún.</div>';
+    return;
+  }
+  el.innerHTML = permisosHistorial.slice(0,20).map(function(r){
+    return '<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid rgba(138,154,46,0.1);font-size:13px">' +
+      '<div style="flex:1"><strong style="color:var(--white)">' + r.nombre + '</strong>' +
+      '<div style="font-size:11px;color:var(--gris-tex)">' + r.titulo + ' · ' + r.fecha + '</div></div>' +
+      '<span style="font-size:11px;color:var(--muted)">' + (r.run||'—') + '</span>' +
+    '</div>';
+  }).join('');
+}
+
 // ── Permisos: selector de funcionario para edelafuente/admin ─
 function initPermSelectorFuncionario() {
   var wrap = document.getElementById('permSelectorWrap');
@@ -4430,6 +4717,7 @@ function dashRender() {
   else if (activePanel === 'dpProfesionales') dashRenderProfesionales(f);
   else if (activePanel === 'dpPacientes')     dashRenderPacientes(f);
   else if (activePanel === 'dpAgenda')        { dashRenderAgendaCharts(); dashRenderAgenda(); }
+  else if (activePanel === 'dpAusentismo')    { dashRenderAusentismo(); }
 }
 
 // ── KPIs ─────────────────────────────────────────────────────
@@ -4772,6 +5060,7 @@ function dashRenderAgenda() {
     <button class="dtab" onclick="dashTab(this,'dpProfesionales')">👩‍⚕️ Profesionales</button>
     <button class="dtab" onclick="dashTab(this,'dpPacientes')">👥 Pacientes</button>
     <button class="dtab" onclick="dashTab(this,'dpAgenda')">📅 Agendamiento</button>
+    <button class="dtab" onclick="dashTab(this,'dpAusentismo')">🏥 Ausentismo</button>
   </div>
 
   <!-- PANEL: Resumen -->
@@ -4820,6 +5109,22 @@ function dashRenderAgenda() {
     </div>
   </div>
 
+  <!-- PANEL: Ausentismo -->
+  <div id="dpAusentismo" class="dpanel">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px">
+      <div class="dcard"><div class="dcard-title">🏥 Licencias por funcionario</div><canvas id="cLicProf" height="220"></canvas></div>
+      <div class="dcard"><div class="dcard-title">📋 Licencias por tipo</div><canvas id="cLicTipo" height="220"></canvas></div>
+    </div>
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:18px;margin-bottom:18px">
+      <div class="dcard"><div class="dcard-title">📅 Días de ausentismo por mes</div><canvas id="cLicMes" height="100"></canvas></div>
+      <div class="dcard"><div class="dcard-title">📊 Resumen ausentismo</div><div id="dLicResumen" style="padding:8px 0"></div></div>
+    </div>
+    <div class="dcard">
+      <div class="dcard-title">📋 Últimas licencias registradas</div>
+      <div id="dLicLista" style="max-height:300px;overflow-y:auto"></div>
+    </div>
+  </div>
+
   <!-- PANEL: Agendamiento -->
   <div id="dpAgenda" class="dpanel">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px">
@@ -4844,5 +5149,62 @@ function dashRenderAgenda() {
 </div>
 </div>
 
+
+<!-- ===================== SCREEN: LICENCIAS MÉDICAS ===================== -->
+<div class="screen" id="screenLicencias">
+<div class="inner-screen" style="max-width:960px">
+  <button class="back-btn" onclick="goTo('screenMenu')" style="margin-bottom:16px">← Menú</button>
+  <div class="screen-title" style="color:#c45c3a">🏥 Licencias Médicas</div>
+  <div class="screen-subtitle">Registro y seguimiento de licencias médicas del equipo PACTO · HGGB</div>
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-header">➕ Registrar Nueva Licencia</div>
+    <div class="form-row">
+      <div class="form-group"><label>Funcionario</label>
+        <select id="licFuncionario" onchange="licCargarDatos()"><option value="">— Seleccione funcionario —</option></select>
+      </div>
+      <div class="form-group"><label>RUN</label>
+        <input type="text" id="licRun" placeholder="Autocompletado" readonly style="background:rgba(138,154,46,0.08)">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Fecha inicio</label><input type="date" id="licFechaInicio"></div>
+      <div class="form-group"><label>Fecha término</label><input type="date" id="licFechaTermino" onchange="licCalcularDias()"></div>
+      <div class="form-group"><label>Días totales</label><input type="number" id="licDias" readonly style="background:rgba(138,154,46,0.08)"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Tipo de licencia</label>
+        <select id="licTipo">
+          <option>Enfermedad común</option><option>Accidente laboral</option>
+          <option>Enfermedad profesional</option><option>Maternal / Pre y postnatal</option>
+          <option>Paternal</option><option>Cuidado hijo enfermo</option><option>Otro</option>
+        </select>
+      </div>
+      <div class="form-group"><label>N° Licencia / Folio</label><input type="text" id="licFolio" placeholder="Ej: 2024-001"></div>
+    </div>
+    <div class="form-group"><label>Observaciones</label>
+      <textarea id="licObs" rows="2" placeholder="Observaciones adicionales..."></textarea>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:8px">
+      <button class="btn btn-primary" onclick="guardarLicencia()">💾 Registrar Licencia</button>
+      <button class="btn btn-secondary" onclick="limpiarLicencia()">🔄 Limpiar</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+      <span>📋 Registro de Licencias</span>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="licBusca" placeholder="Buscar..." oninput="renderLicencias()" style="font-size:12px;width:160px">
+        <select id="licFiltroTipo" onchange="renderLicencias()" style="font-size:12px;width:auto">
+          <option value="">Todos los tipos</option>
+          <option>Enfermedad común</option><option>Accidente laboral</option>
+          <option>Maternal / Pre y postnatal</option><option>Paternal</option><option>Cuidado hijo enfermo</option>
+        </select>
+      </div>
+    </div>
+    <div id="licListado" style="overflow-x:auto;max-height:460px;overflow-y:auto"></div>
+    <div id="licStats" style="padding:10px 14px;font-size:12px;color:var(--gris-tex);border-top:1px solid rgba(138,154,46,0.1)"></div>
+  </div>
+</div>
+</div>
 </body>
 </html>
