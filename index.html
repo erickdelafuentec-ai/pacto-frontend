@@ -1,10 +1,4 @@
-var preguntasSM = [
-  '¿Ha pensado en hacerse daño?',
-  '¿Consume alcohol o algún tipo de droga ocasionando problemas en sus relaciones?',
-  '¿Se ha visto afectado su ánimo (falta o exceso) durante los últimos 6 meses?',
-  '¿Siente que sus relaciones (familiares, laborales, con pares) se han visto afectadas por su estado de ánimo?',
-  '¿Considera que necesita ayuda para sobrellevar problemas de salud visual?'
-];<!DOCTYPE html>
+// preguntasSM eliminado — usar SM_PREGUNTAS<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -3470,14 +3464,11 @@ function cargarFichaTS(idx) {
 // TAMIZAJE SM
 // ============================================================
 const SM_PREGUNTAS = [
-  {id:'p1',  texto:'¿Ha tenido sentimientos de tristeza o desesperanza durante más de 2 semanas?'},
-  {id:'p2',  texto:'¿Ha perdido interés en actividades que antes le gustaban?'},
-  {id:'p3',  texto:'¿Ha tenido pensamientos de hacerse daño o de que estaría mejor muerto/a?'},
-  {id:'p4',  texto:'¿Ha tenido periodos de mucha energía, poco sueño y hablar más de lo usual?'},
-  {id:'p5',  texto:'¿Siente que su vida está controlada por miedos o preocupaciones que no puede controlar?'},
-  {id:'p6',  texto:'¿Ha tenido recuerdos intrusivos o pesadillas sobre un evento traumático?'},
-  {id:'p7',  texto:'¿Escucha voces o ve cosas que otros no escuchan o ven?'},
-  {id:'p8',  texto:'¿Ha consumido alcohol u otras sustancias de forma problemática?'},
+  {id:'p1', texto:'¿Ha pensado en hacerse daño?'},
+  {id:'p2', texto:'¿Consume alcohol o algún tipo de droga ocasionando problemas en sus relaciones?'},
+  {id:'p3', texto:'¿Se ha visto afectado su ánimo (falta o exceso) durante los últimos 6 meses?'},
+  {id:'p4', texto:'¿Siente que sus relaciones (familiares, laborales, con pares) se han visto afectadas por su estado de ánimo?'},
+  {id:'p5', texto:'¿Considera que necesita ayuda para sobrellevar problemas de salud visual?'},
 ];
 let smRespuestas = {};
 
