@@ -1,4 +1,4 @@
-// preguntasSM eliminado — usar SM_PREGUNTAS<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -1472,12 +1472,7 @@
             oninput="this.value=this.value.replace(/[^0-9kK\-]/g,'')"
             onkeypress="if(event.key==='Enter')buscarPacienteTS()">
           <button class="btn btn-primary" onclick="buscarPacienteTS()">🔍 Buscar</button>
-          <button class="btn btn-success" onclick="nuevoRegistroTS()" title="Nuevo registro en blanco">✚ Nuevo</button>
           <button class="btn btn-secondary" onclick="limpiarFichaTS()">🔄 Limpiar</button>
-        </div>
-        <!-- Estado del formulario -->
-        <div id="tsModoLabel" style="margin-top:8px;font-size:12px;display:none">
-          <span id="tsModoTexto"></span>
         </div>
       </div>
 
@@ -1561,15 +1556,15 @@
         <div class="card-header">💰 Beneficios y Apoyos Sociales</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:16px">
           <div>
-            <label class="check-item" style="margin-bottom:6px">
-              <input type="checkbox" id="tsRSH" onchange="toggleRSHPct(this)">
+            <label class="check-item" style="margin-bottom:4px">
+              <input type="checkbox" id="tsRSH" onchange="document.getElementById('tsRSHPctWrap').style.display=this.checked?'block':'none'">
               <span>RSH</span>
             </label>
-            <div id="tsRSHPctWrap" style="display:none;margin-left:32px;margin-bottom:8px">
-              <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;display:block">Porcentaje RSH</label>
+            <div id="tsRSHPctWrap" style="display:none;margin:4px 0 8px 32px">
+              <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;display:block">% Porcentaje RSH</label>
               <div style="display:flex;align-items:center;gap:8px">
                 <input type="number" id="tsRSHPct" min="0" max="100" placeholder="Ej: 40" style="width:90px;font-size:13px">
-                <span style="font-size:14px;color:var(--white);font-weight:700">%</span>
+                <span style="color:var(--white);font-weight:700">%</span>
               </div>
             </div>
           </div>
@@ -1728,18 +1723,6 @@
     <button class="back-btn" onclick="goTo('screenMenu')">← Volver al Menú</button>
     <div class="screen-title" style="color:#7c3aed;margin-top:16px">🗂️ Personal PACTO</div>
     <div class="screen-subtitle">Solicitudes de permisos administrativos y documentos oficiales.</div>
-
-    <!-- Staff directory -->
-    <div class="card" id="cardPersonalLista">
-      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
-        <span>👥 Equipo PACTO</span>
-        <button class="btn btn-sm btn-secondary" onclick="togglePersonalLista()">Ver equipo</button>
-      </div>
-      <div id="personalListaContent" style="display:none">
-        <div id="personalTabla" style="overflow-x:auto"></div>
-      </div>
-    </div>
-
     <!-- Selector tipo solicitud -->
     <div class="card" id="cardSelectorPermiso">
       <div class="card-header">📋 Seleccione el tipo de solicitud</div>
@@ -1761,11 +1744,10 @@
       </div>
       <div class="form-section">
         <div class="form-section-title">👤 Datos del Funcionario</div>
-        <!-- Selector rápido solo para edelafuente/admin -->
-        <div id="permSelectorFuncionario" style="display:none;margin-bottom:14px;padding:12px;background:rgba(168,85,247,0.08);border:1px solid rgba(168,85,247,0.2);border-radius:10px">
-          <label style="font-size:11px;font-weight:700;color:var(--acc2);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;display:block">⚡ Cargar datos de un funcionario PACTO</label>
-          <select id="permSelectFuncionario" onchange="permCargarFuncionario()" style="width:100%;font-size:13px">
-            <option value="">— Seleccione un funcionario del equipo —</option>
+        <div id="permSelectorWrap" style="display:none;margin-bottom:14px;padding:12px 14px;background:rgba(168,85,247,0.1);border:1px solid rgba(168,85,247,0.25);border-radius:10px">
+          <label style="font-size:11px;font-weight:700;color:var(--acc2);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:7px;display:block">⚡ Cargar datos de un funcionario PACTO</label>
+          <select id="permSelectFunc" onchange="permCargarFuncionario()" style="width:100%;font-size:13px">
+            <option value="">— Seleccione un funcionario —</option>
           </select>
         </div>
         <div class="form-row"><div class="form-group"><label>Apellidos y Nombres</label><input type="text" id="perm_nombre" placeholder="APELLIDOS NOMBRE"></div><div class="form-group"><label>RUN</label><input type="text" id="perm_run" placeholder="12.345.678-9"></div></div>
@@ -2266,198 +2248,15 @@ function separador() {
   return '<hr class="linea-sep">';
 }
 
-
-
-// ── Permisos — selector funcionario para edelafuente ─────────
-function initPermSelectorFuncionario() {
-  if (currentUser !== 'edelafuente' && currentUser !== 'admin') return;
-  var wrap = document.getElementById('permSelectorFuncionario');
-  if (wrap) wrap.style.display = 'block';
-  var sel = document.getElementById('permSelectFuncionario');
-  if (!sel) return;
-  sel.innerHTML = '<option value="">— Seleccione un funcionario —</option>';
-  PERSONAL_PACTO.forEach(function(p) {
-    var opt = document.createElement('option');
-    opt.value = p.id;
-    opt.textContent = p.nombre + ' — ' + p.cargo;
-    sel.appendChild(opt);
-  });
-}
-
-function permCargarFuncionario() {
-  var sel = document.getElementById('permSelectFuncionario');
-  if (!sel || !sel.value) return;
-  var prof = PERSONAL_PACTO.find(function(p){ return p.id === sel.value; });
-  if (!prof) return;
-  var nomEl = document.getElementById('perm_nombre');
-  var runEl = document.getElementById('perm_run');
-  var carEl = document.getElementById('perm_cargo');
-  if (nomEl) nomEl.value = prof.nombre;
-  if (runEl) runEl.value = prof.rut || '';
-  if (carEl) carEl.value = prof.cargo || '';
-}
-
-// ── Personal PACTO directory ──────────────────────────────────
-function togglePersonalLista() {
-  var div = document.getElementById('personalListaContent');
-  var btn = document.querySelector('#cardPersonalLista .btn');
-  if (!div) return;
-  if (div.style.display === 'none') {
-    div.style.display = 'block';
-    if (btn) btn.textContent = 'Ocultar';
-    renderPersonalTabla();
-  } else {
-    div.style.display = 'none';
-    if (btn) btn.textContent = 'Ver equipo';
-  }
-}
-
-function renderPersonalTabla() {
-  var el = document.getElementById('personalTabla'); if (!el) return;
-  var establecimientos = ['HGGB', 'COSAM Concepción', 'PRAIS / SSC'];
-  var html = '';
-  establecimientos.forEach(function(est) {
-    var grupo = PERSONAL_PACTO.filter(function(p){ return p.establecimiento === est; });
-    if (!grupo.length) return;
-    html += '<div style="margin-bottom:20px">';
-    html += '<div style="font-family:Space Grotesk,sans-serif;font-size:13px;font-weight:700;color:var(--acc2);text-transform:uppercase;letter-spacing:1px;padding:8px 0;border-bottom:2px solid rgba(168,85,247,0.3);margin-bottom:10px">' + est + '</div>';
-    html += '<table><thead><tr><th>Nombre completo</th><th>Cargo</th><th>RUT</th><th>Correo</th><th>Anexo</th><th>Horas</th><th>Ley</th></tr></thead><tbody>';
-    grupo.forEach(function(p) {
-      html += '<tr>' +
-        '<td><strong>' + p.nombre + '</strong></td>' +
-        '<td>' + p.cargo + '</td>' +
-        '<td style="font-family:monospace;font-size:12px">' + p.rut + '</td>' +
-        '<td style="font-size:12px">' + (p.correo||'—') + '</td>' +
-        '<td style="text-align:center">' + (p.anexo||'—') + '</td>' +
-        '<td style="text-align:center">' + (p.horas ? p.horas+'h' : '—') + '</td>' +
-        '<td style="font-size:11px;color:var(--muted)">' + (p.ley||'—') + '</td>' +
-      '</tr>';
-    });
-    html += '</tbody></table></div>';
-  });
-  el.innerHTML = html;
-}
-
-
-// ============================================================
-// CONEXIÓN CON BACKEND RAILWAY
-// API: https://pacto-backend-production.up.railway.app
-// ============================================================
-const API_URL = 'https://pacto-backend-production.up.railway.app';
-let authToken = localStorage.getItem('pacto_token') || null;
-
-// ── API helper ────────────────────────────────────────────────
-async function apiCall(method, endpoint, body) {
-  var opts = {
-    method: method,
-    headers: { 'Content-Type': 'application/json' }
-  };
-  if (authToken) opts.headers['Authorization'] = 'Bearer ' + authToken;
-  if (body)      opts.body = JSON.stringify(body);
-  try {
-    var res  = await fetch(API_URL + endpoint, opts);
-    var data = await res.json();
-    if (res.status === 401 || res.status === 403) {
-      // Token expirado — volver al login
-      authToken = null;
-      localStorage.removeItem('pacto_token');
-      cerrarSesion();
-      return null;
-    }
-    return { ok: res.ok, status: res.status, data: data };
-  } catch(e) {
-    console.warn('API error (usando localStorage):', e.message);
-    return null; // fallback a localStorage
-  }
-}
-
-// ── Sync: guardar cita en BD ──────────────────────────────────
-async function syncCitaBD(cita) {
-  var r = await apiCall('POST', '/api/citas', {
-    rut_paciente: cita.rut,
-    nombre_pac:   (cita.nombre||'') + ' ' + (cita.ap_pat||''),
-    dia:          cita.dia,
-    fecha:        cita.fecha,
-    hora:         cita.hora,
-    profesional:  cita.profesional,
-    cargo_prof:   cita.cargo,
-    actividad:    cita.actividad
-  });
-  if (r && r.ok) console.log('✅ Cita guardada en BD');
-  else console.warn('⚠️ Cita guardada solo en localStorage');
-}
-
-// ── Sync: cargar citas desde BD ───────────────────────────────
-async function syncCargarCitasBD() {
-  var r = await apiCall('GET', '/api/citas', null);
-  if (r && r.ok && Array.isArray(r.data) && r.data.length > 0) {
-    // Merge BD data with localStorage (BD takes priority)
-    var bdCitas = r.data.map(function(c) {
-      return {
-        id:          c.id,
-        rut:         c.rut_paciente,
-        nombre:      (c.nombre_pac||'').split(' ')[0] || '',
-        ap_pat:      (c.nombre_pac||'').split(' ')[1] || '',
-        dia:         c.dia,
-        fecha:       c.fecha ? c.fecha.split('T')[0] : '',
-        hora:        c.hora,
-        profesional: c.profesional,
-        cargo:       c.cargo_prof,
-        actividad:   c.actividad,
-        estado:      c.estado,
-        nsp:         c.nsp
-      };
-    });
-    // Only update if BD has more data
-    if (bdCitas.length >= agendaData.length) {
-      agendaData = bdCitas;
-      saveAgenda();
-      console.log('✅ Citas sincronizadas desde BD:', bdCitas.length);
-    }
-  }
-}
-
-// ── Sync: guardar ficha TS en BD ──────────────────────────────
-async function syncFichaTsBD(reg) {
-  var r = await apiCall('POST', '/api/fichas', reg);
-  if (r && r.ok) console.log('✅ Ficha TS guardada en BD');
-  else console.warn('⚠️ Ficha TS guardada solo en localStorage');
-}
-
-// ── Sync: guardar devolucion en BD ────────────────────────────
-async function syncDevolucionBD(reg) {
-  var r = await apiCall('POST', '/api/devoluciones', {
-    folio:           reg.folio,
-    fecha:           reg.fecha,
-    rut_paciente:    reg.rut,
-    nombre_paciente: reg.nombre,
-    transportes:     reg.transportes,
-    valores:         reg.valores,
-    empresa_bus:     reg.empresaBus,
-    acomp:           reg.acomp,
-    total:           reg.total,
-    observaciones:   reg.obs
-  });
-  if (r && r.ok) console.log('✅ Devolucion guardada en BD');
-}
-
-
 // ============================================================
 // DATOS USUARIOS
 // ============================================================
 const USUARIOS_DEFAULT = [
-  // HGGB
-  {username:'jsepulveda',  password:'pacto2024', nombre:'Juan José',   ap_pat:'Sepúlveda',  ap_mat:'Avilés',  cargo:'Tecnólogo Médico',            rut:'17.044.929-0', correo:'jefepacto@ssconcepcion.cl',       anexo:'417847', establecimiento:'HGGB', horas:44, rol:'usuario', estado:'activo'},
-  {username:'jcortes',     password:'pacto2024', nombre:'Jacqueline',  ap_pat:'Cortés',     ap_mat:'Fuentes', cargo:'Trabajadora Social (Remplazante)', rut:'9168151-K',   correo:'pacto@ssconcepcion.cl',          anexo:'417758', establecimiento:'HGGB', horas:44, rol:'usuario', estado:'activo'},
-  {username:'cobreque',    password:'pacto2024', nombre:'Claudia',     ap_pat:'Obreque',    ap_mat:'Aedo',    cargo:'Trabajadora Social',            rut:'17.115.025-6', correo:'pacto@ssconcepcion.cl',           anexo:'417758', establecimiento:'HGGB', horas:44, rol:'usuario', estado:'activo'},
-  {username:'edelafuente', password:'pacto2024', nombre:'Erick',       ap_pat:'De La Fuente',ap_mat:'Campos', cargo:'Administrativo',               rut:'17892244-0',   correo:'secrepacto@ssconcepcion.cl',      anexo:'417758', establecimiento:'HGGB', horas:44, rol:'usuario', estado:'activo'},
-  {username:'jguenuman',   password:'pacto2024', nombre:'Jeannette',   ap_pat:'Guenuman',   ap_mat:'Aguilar', cargo:'Terapeuta Ocupacional',         rut:'17.719.982-6', correo:'jguenuman.a@gmail.com',           anexo:'417785', establecimiento:'HGGB', horas:44, rol:'usuario', estado:'activo'},
-  {username:'rcorrea',     password:'pacto2024', nombre:'Roberto',     ap_pat:'Correa',     ap_mat:'Díaz',    cargo:'Oftalmólogo',                   rut:'15.186.271-3', correo:'robertocorreadiaz@gmail.com',     anexo:'',      establecimiento:'HGGB', horas:11, rol:'usuario', estado:'activo'},
-  {username:'phidalgo',    password:'pacto2024', nombre:'Peter',       ap_pat:'Hidalgo',    ap_mat:'Pino',    cargo:'Somatoprotesista',              rut:'15.592.283-4', correo:'dr.peterhidalgo@gmail.com',       anexo:'417684', establecimiento:'HGGB', horas:11, rol:'usuario', estado:'activo'},
-  // COSAM
-  {username:'lceballos',   password:'pacto2024', nombre:'Luz María',   ap_pat:'Ceballos',   ap_mat:'Guajardo',cargo:'Psiquiatra',                   rut:'14.355.930-0', correo:'luz.ceballosg@ssconcepcion.cl',   anexo:'419026', establecimiento:'COSAM Concepción', horas:11, rol:'usuario', estado:'activo'},
-  {username:'craud',       password:'pacto2024', nombre:'Christopher', ap_pat:'Rauld',      ap_mat:'Martínez',cargo:'Psicólogo',                    rut:'16.628.403-1', correo:'psicologopacto@ssconcepcion.cl',  anexo:'419032', establecimiento:'COSAM Concepción', horas:44, rol:'usuario', estado:'activo'},
-  {username:'gmackay',     password:'pacto2024', nombre:'Gonzalo',     ap_pat:'Mac-Kay',    ap_mat:'Valenzuela',cargo:'Psicólogo',                  rut:'17.757.032-K', correo:'psicologopacto@ssconcepcion.cl',  anexo:'419032', establecimiento:'COSAM Concepción', horas:44, rol:'usuario', estado:'activo'},
+  {username:'jsepulveda',  password:'pacto2024', nombre:'Juan José',  ap_pat:'Sepúlveda', ap_mat:'', cargo:'Tecnólogo Médico', rol:'usuario', estado:'activo'},
+  {username:'jcortes',     password:'pacto2024', nombre:'Jacqueline', ap_pat:'Cortés',    ap_mat:'', cargo:'Trabajadora Social', rol:'usuario', estado:'activo'},
+  {username:'edelafuente', password:'pacto2024', nombre:'Erick',      ap_pat:'De La Fuente',ap_mat:'',cargo:'Administrativo',rol:'usuario',estado:'activo'},
+  {username:'craud',       password:'pacto2024', nombre:'Christopher',ap_pat:'Raud',      ap_mat:'', cargo:'Psicólogo', rol:'usuario', estado:'activo'},
+  {username:'jguenuman',   password:'pacto2024', nombre:'Jeannette',  ap_pat:'Guenuman',  ap_mat:'Aguilar',cargo:'Terapeuta Ocupacional',rol:'usuario',estado:'activo'},
 ];
 
 function initUsuarios() {
@@ -2493,51 +2292,19 @@ function saveTS()     { localStorage.setItem('tsData',     JSON.stringify(tsData
 let currentUser    = null;
 let currentUserObj = null;
 
-async function doLogin() {
-  var username = document.getElementById('loginUsername').value.trim().toLowerCase();
-  var password = document.getElementById('loginPassword').value;
-  var errDiv   = document.getElementById('loginError');
-
-  // Try API login first
-  try {
-    var res = await fetch(API_URL + '/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: username, password: password })
-    });
-    var data = await res.json();
-    if (res.ok && data.token) {
-      authToken = data.token;
-      localStorage.setItem('pacto_token', data.token);
-      var user = data.user;
-      currentUser    = username;
-      currentUserObj = { nombre: user.nombre, ap_pat: user.ap_pat, cargo: user.cargo, rol: user.rol };
-      errDiv.style.display = 'none';
-      document.getElementById('loginScreen').style.display = 'none';
-      document.getElementById('mainHeader').style.display  = 'flex';
-      document.getElementById('userDot').textContent       = (user.nombre||username)[0].toUpperCase();
-      document.getElementById('headerUserName').textContent= (user.nombre||'') + ' ' + (user.ap_pat||'');
-      // Sync citas from BD
-      await syncCargarCitasBD();
-      goTo('screenMenu');
-      return;
-    }
-    // Admin special case
-    if (username === 'admin' && data.token) {
-      mostrarPanelAdmin(); return;
-    }
-  } catch(e) {
-    console.warn('API no disponible, usando login local:', e.message);
-  }
-
-  // Fallback: login local
+function doLogin() {
   initUsuarios();
+  const username = document.getElementById('loginUsername').value.trim().toLowerCase();
+  const password = document.getElementById('loginPassword').value;
+  const errDiv   = document.getElementById('loginError');
+
+  // Admin
   if (username === 'admin' && password === 'admin2024') {
     errDiv.style.display = 'none';
     mostrarPanelAdmin(); return;
   }
-  var usuarios = getUsuarios();
-  var user = usuarios.find(function(u){ return u.username.toLowerCase()===username && u.password===password && u.estado==='activo'; });
+  const usuarios = getUsuarios();
+  const user = usuarios.find(u => u.username.toLowerCase() === username && u.password === password && u.estado === 'activo');
   if (!user) {
     errDiv.style.display = 'block';
     errDiv.classList.add('visible'); return;
@@ -2547,8 +2314,10 @@ async function doLogin() {
   errDiv.style.display = 'none';
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('mainHeader').style.display  = 'flex';
-  document.getElementById('userDot').textContent       = (user.nombre||username)[0].toUpperCase();
-  document.getElementById('headerUserName').textContent= (user.nombre||'') + ' ' + (user.ap_pat||'');
+  const dot  = document.getElementById('userDot');
+  const name = document.getElementById('headerUserName');
+  dot.textContent  = (user.nombre || username)[0].toUpperCase();
+  name.textContent = (user.nombre || '') + ' ' + (user.ap_pat || '');
   goTo('screenMenu');
 }
 
@@ -2682,41 +2451,21 @@ let horaSeleccionada    = '';
 let fechaSeleccionada   = '';
 let profsSeleccionados  = [];
 
-// ── Personal completo PACTO (desde planilla oficial) ────────────
-const PERSONAL_PACTO = [
-  // HGGB
-  {id:'jsepulveda', nombre:'JUAN JOSÉ SEPÚLVEDA AVILÉS',    cargo:'Tecnólogo Médico',              rut:'17.044.929-0', correo:'jefepacto@ssconcepcion.cl',      anexo:'417847', establecimiento:'HGGB',              horas:44, ley:'Ley 18.834'},
-  {id:'jcortes',    nombre:'JACQUELINE LIRIA CORTÉS FUENTES',cargo:'Trabajadora Social (Remplazante)',rut:'9168151-K',  correo:'pacto@ssconcepcion.cl',          anexo:'417758', establecimiento:'HGGB',              horas:44, ley:'Ley 18.834'},
-  {id:'cobreque',   nombre:'CLAUDIA FRANCISCA OBREQUE AEDO', cargo:'Trabajadora Social',            rut:'17.115.025-6', correo:'pacto@ssconcepcion.cl',          anexo:'417758', establecimiento:'HGGB',              horas:44, ley:'Ley 18.834'},
-  {id:'edelafuente',nombre:'ERICK DE LA FUENTE CAMPOS',      cargo:'Administrativo',               rut:'17892244-0',   correo:'secrepacto@ssconcepcion.cl',     anexo:'417758', establecimiento:'HGGB',              horas:44, ley:'Ley 18.834'},
-  {id:'jguenuman',  nombre:'JEANNETTE PATRICIA GUENUMAN AGUILAR',cargo:'Terapeuta Ocupacional',    rut:'17.719.982-6', correo:'jguenuman.a@gmail.com',          anexo:'417785', establecimiento:'HGGB',              horas:44, ley:'Ley 18.834'},
-  {id:'rcorrea',    nombre:'ROBERTO CORREA DÍAZ',            cargo:'Oftalmólogo',                  rut:'15.186.271-3', correo:'robertocorreadiaz@gmail.com',    anexo:'',       establecimiento:'HGGB',              horas:11, ley:'Ley 19.664 / 15.076'},
-  {id:'phidalgo',   nombre:'PETER RODRIGO HIDALGO PINO',     cargo:'Somatoprotesista',             rut:'15.592.283-4', correo:'dr.peterhidalgo@gmail.com',      anexo:'417684', establecimiento:'HGGB',              horas:11, ley:'Ley 19.664 / 15.076'},
-  // COSAM Concepción
-  {id:'lceballos',  nombre:'LUZ MARÍA CEBALLOS GUAJARDO',    cargo:'Psiquiatra',                   rut:'14.355.930-0', correo:'luz.ceballosg@ssconcepcion.cl',  anexo:'419026', establecimiento:'COSAM Concepción',  horas:11, ley:'Ley 19.664 / 15.076'},
-  {id:'craud',      nombre:'CHRISTOPHER RICHARD RAULD MARTÍNEZ',cargo:'Psicólogo',                rut:'16.628.403-1', correo:'psicologopacto@ssconcepcion.cl', anexo:'419032', establecimiento:'COSAM Concepción',  horas:44, ley:'Ley 18.834'},
-  {id:'gmackay',    nombre:'GONZALO DANIEL MAC-KAY VALENZUELA',cargo:'Psicólogo',                  rut:'17.757.032-K', correo:'psicologopacto@ssconcepcion.cl', anexo:'419032', establecimiento:'COSAM Concepción',  horas:44, ley:'Ley 18.834'},
-  // SSC / PRAIS (Jefatura)
-  {id:'rfrodden',   nombre:'RICARDO JOSÉ FRODDEN REYES',     cargo:'Referente / Jefatura PRAIS',   rut:'9.277.118-0',  correo:'ricardo.frodden@ssconcepcion.cl',anexo:'411361', establecimiento:'PRAIS / SSC',       horas:null, ley:'Ley 19.664 / 15.076'},
-];
-
 // Profesionales por día con sus horarios específicos
 const AGENDA_DIAS = {
   Martes: {
     profesionales: [
-      {id:'jsepulveda', prof:'JUAN JOSÉ SEPÚLVEDA',           cargo:'Tecnólogo Médico'},
-      {id:'jcortes',    prof:'JACQUELINE CORTÉS',             cargo:'Trabajadora Social'},
-      {id:'cobreque',   prof:'CLAUDIA OBREQUE',               cargo:'Trabajadora Social'},
-      {id:'jguenuman',  prof:'JEANNETTE GUENUMAN AGUILAR',    cargo:'Terapeuta Ocupacional'},
+      {id:'jsepulveda', prof:'JUAN JOSÉ SEPÚLVEDA',        cargo:'Tecnólogo Médico'},
+      {id:'jcortes',    prof:'JACQUELINE CORTÉS',          cargo:'Trabajadora Social'},
+      {id:'jguenuman',  prof:'JEANNETTE GUENUMAN AGUILAR', cargo:'Terapeuta Ocupacional'},
     ],
     horarios: ['13:30','14:30','15:30']
   },
   Jueves: {
     profesionales: [
-      {id:'jsepulveda', prof:'JUAN JOSÉ SEPÚLVEDA',           cargo:'Tecnólogo Médico'},
-      {id:'jcortes',    prof:'JACQUELINE CORTÉS',             cargo:'Trabajadora Social'},
-      {id:'cobreque',   prof:'CLAUDIA OBREQUE',               cargo:'Trabajadora Social'},
-      {id:'jguenuman',  prof:'JEANNETTE GUENUMAN AGUILAR',    cargo:'Terapeuta Ocupacional'},
+      {id:'jsepulveda', prof:'JUAN JOSÉ SEPÚLVEDA',        cargo:'Tecnólogo Médico'},
+      {id:'jcortes',    prof:'JACQUELINE CORTÉS',          cargo:'Trabajadora Social'},
+      {id:'jguenuman',  prof:'JEANNETTE GUENUMAN AGUILAR', cargo:'Terapeuta Ocupacional'},
     ],
     horarios: ['08:00','09:00','10:00','11:00']
   },
@@ -2905,7 +2654,7 @@ function renderHorarios() {
   var diaInfo  = AGENDA_DIAS[diaSeleccionado];
   var horarios = diaInfo ? diaInfo.horarios : [];
   var horariosProf = diaInfo ? (diaInfo.horariosProf || null) : null;
-  // Check ocupados by EXACT date
+  // Check ocupados by EXACT date (dia + fecha)
   var ocupados = agendaData.filter(function(a){
     return a.dia === diaSeleccionado && (fechaSeleccionada ? a.fecha === fechaSeleccionada : true);
   }).map(function(a){ return a.hora; });
@@ -2918,17 +2667,13 @@ function renderHorarios() {
     var occ = ocupados.indexOf(h) !== -1;
     var sel = horaSeleccionada === h ? ' selected' : '';
     var cls = 'slot-hora' + (occ ? ' ocupada' : sel);
-    // Show assigned prof per slot if horariosProf defined (Viernes)
     var profLabel = '';
-    if (horariosProf && horariosProf[h]) {
-      var profId = horariosProf[h];
-      var profObj = PERSONAL_PACTO.find(function(p){ return p.id === profId; });
-      if (profObj) {
-        var shortName = profObj.nombre.split(' ').slice(0,2).join(' ');
-        profLabel = '<div style="font-size:10px;font-weight:500;color:var(--muted);margin-top:3px">' + shortName + '</div>';
-      }
+    if (diaInfo && diaInfo.horariosProf && diaInfo.horariosProf[h]) {
+      var pId = diaInfo.horariosProf[h];
+      var pObj = (typeof PERSONAL_PACTO !== 'undefined') ? PERSONAL_PACTO.find(function(x){ return x.id===pId; }) : null;
+      if (pObj) profLabel = '<div style="font-size:10px;color:var(--muted);margin-top:2px">' + pObj.nombre.split(' ').slice(0,2).join(' ') + '</div>';
     }
-    html += '<div class="' + cls + '" data-hora="' + h + '">' + h + ' hrs' + profLabel + (occ ? '<div style="font-size:10px;color:var(--pink)">Ocupado</div>' : '') + '</div>';
+    html += '<div class="' + cls + '" data-hora="' + h + '">' + h + ' hrs' + profLabel + (occ ? '<div style="font-size:10px;color:#f472b6">Ocupado</div>' : '') + '</div>';
   });
   grid.innerHTML = html;
   grid.querySelectorAll('.slot-hora:not(.ocupada)').forEach(function(btn) {
@@ -2937,19 +2682,6 @@ function renderHorarios() {
 }
 
 function selHora(hora, btn) {
-  // Auto-assign prof for slots with fixed assignment (e.g. Viernes)
-  var diaInfo = AGENDA_DIAS[diaSeleccionado];
-  if (diaInfo && diaInfo.horariosProf && diaInfo.horariosProf[hora]) {
-    var fixedProfId = diaInfo.horariosProf[hora];
-    var fixedProf   = diaInfo.profesionales.find(function(p){ return p.id === fixedProfId; });
-    if (fixedProf) {
-      profsSeleccionados = [fixedProf];
-      // Update prof checkboxes UI
-      document.querySelectorAll('.prof-checkbox').forEach(function(cb){
-        cb.checked = cb.dataset.id === fixedProfId;
-      });
-    }
-  }
   horaSeleccionada = hora;
   document.querySelectorAll('.slot-hora').forEach(b => b.classList.remove('selected'));
   btn.classList.add('selected');
@@ -3023,10 +2755,7 @@ function confirmarAgendamiento() {
     });
   });
   saveAgenda();
-  // Sync last added citas to BD
-  var lastCitas = agendaData.slice(-profsSeleccionados.length);
-  lastCitas.forEach(function(c){ syncCitaBD(c); });
-  var profResumen = profsSeleccionados.map(function(p){ return p.prof; }).join(', ');
+  const profResumen = profsSeleccionados.map(p => p.prof).join(', ');
   mostrarConfirm('✅ Paciente Agendado',
     (pacienteActual.nombre||'') + ' ' + (pacienteActual.ap_pat||'') +
     ' agendado el ' + diaSeleccionado + ' a las ' + horaSeleccionada + ' hrs con: ' + profResumen + '.');
@@ -3149,51 +2878,12 @@ function tsTab(btn, secId) {
   if (secId === 'tsSM')        renderSMPreguntas();
 }
 
-function toggleRSHPct(cb) {
-  var wrap = document.getElementById('tsRSHPctWrap');
-  if (wrap) wrap.style.display = cb.checked ? 'block' : 'none';
-  if (!cb.checked) {
-    var pct = document.getElementById('tsRSHPct');
-    if (pct) pct.value = '';
-  }
-}
-
-function nuevoRegistroTS() {
-  // Limpiar todos los campos
-  limpiarFichaTS();
-  // Quitar el RUT para que el usuario lo ingrese
-  var rutEl = document.getElementById('tsRut');
-  if (rutEl) { rutEl.value = ''; rutEl.focus(); }
-  // Mostrar modo nuevo registro
-  var lbl  = document.getElementById('tsModoLabel');
-  var txt  = document.getElementById('tsModoTexto');
-  if (lbl) lbl.style.display = 'block';
-  if (txt) {
-    txt.innerHTML = '<span style="background:rgba(16,185,129,0.15);color:#34d399;border:1px solid rgba(16,185,129,0.3);padding:3px 12px;border-radius:20px;font-weight:700">✚ Nuevo registro — complete los datos y haga clic en Guardar</span>';
-  }
-  // Pre-fill fecha ingreso con hoy
-  var fi = document.getElementById('tsFechaIngreso');
-  if (fi && !fi.value) fi.value = new Date().toISOString().split('T')[0];
-  // Scroll al formulario
-  var card = document.querySelector('#tsFicha .card');
-  if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  actasToast && actasToast('Nuevo registro listo para completar', 'success');
-  mostrarConfirm && void 0; // no mostrar confirm
-}
-
 function buscarPacienteTS() {
   var rut = (document.getElementById('tsRut').value||'').trim().replace(/\./g,'').replace(/-/g,'');
   if (!rut) return;
   // 1. Search in tsData (previous TS registrations)
   var reg = tsData.slice().reverse().find(function(r){ return (r.tsRut||'').replace(/\./g,'').replace(/-/g,'').startsWith(rut); });
-  if (reg) {
-    fillFichaTS(reg);
-    var lbl2 = document.getElementById('tsModoLabel');
-    var txt2 = document.getElementById('tsModoTexto');
-    if (lbl2) lbl2.style.display = 'block';
-    if (txt2) txt2.innerHTML = '<span style="background:rgba(168,85,247,0.15);color:#c084fc;border:1px solid rgba(168,85,247,0.3);padding:3px 12px;border-radius:20px;font-weight:700">✓ Editando: ' + (reg.tsNombre||'Paciente') + ' ' + (reg.tsApPat||'') + '</span>';
-    return;
-  }
+  if (reg) { fillFichaTS(reg); return; }
   // 2. Search in agendaData
   var a = agendaData.find(function(x){ return (x.rut||'').replace(/\./g,'').replace(/-/g,'').startsWith(rut); });
   if (a) {
@@ -3261,8 +2951,6 @@ function limpiarFichaTS() {
     'tsHabitacionIndep','tsBanoVivienda','tsAccesoTransporte',
     'tsApoyoFamiliar','tsApoyoAmigos','tsApoyoVecinos','tsApoyoInstitucional','tsInteresParticipacion'];
   allFields.forEach(function(id){ var e=document.getElementById(id); if(e) e.value=''; });
-  var lbl = document.getElementById('tsModoLabel');
-  if (lbl) lbl.style.display = 'none';
   ['tsRSH','tsRND','tsPension','tsSubsidios','tsCredencialDisc',
    'tsAgIglesia','tsAgVecinal','tsAgDeportiva','tsAgNinguna',
    'tsTramCredencial','tsTramAyudaSocial','tsTramInformes'].forEach(function(id){
@@ -3532,6 +3220,41 @@ const PERMISOS_CONFIG = {
   singoce:      {titulo:'📑 Permiso Sin Goce de Sueldo',        tituloDoc:'SOLICITUD PERMISO SIN GOCE',      jornada:false, motivo:true,  motivoLabel:'Motivo de la solicitud', fallecimiento:false},
 };
 
+
+// ── Permisos: selector de funcionario para edelafuente/admin ─
+function initPermSelectorFuncionario() {
+  var wrap = document.getElementById('permSelectorWrap');
+  if (!wrap) return;
+  // Show only for edelafuente and admin
+  if (currentUser !== 'edelafuente' && currentUser !== 'admin') {
+    wrap.style.display = 'none';
+    return;
+  }
+  wrap.style.display = 'block';
+  var sel = document.getElementById('permSelectFunc');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Seleccione un funcionario —</option>';
+  PERSONAL_PACTO.forEach(function(p) {
+    var opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.nombre + ' — ' + p.cargo;
+    sel.appendChild(opt);
+  });
+}
+
+function permCargarFuncionario() {
+  var sel = document.getElementById('permSelectFunc');
+  if (!sel || !sel.value) return;
+  var prof = PERSONAL_PACTO.find(function(p){ return p.id === sel.value; });
+  if (!prof) return;
+  var n = document.getElementById('perm_nombre');
+  var r = document.getElementById('perm_run');
+  var c = document.getElementById('perm_cargo');
+  if (n) n.value = prof.nombre;
+  if (r) r.value = prof.rut || '';
+  if (c) c.value = prof.cargo || '';
+}
+
 function abrirFormPermiso(tipo) {
   tipoPermisoActual = tipo;
   const cfg = PERMISOS_CONFIG[tipo];
@@ -3539,14 +3262,8 @@ function abrirFormPermiso(tipo) {
   document.getElementById('cardFormPermiso').classList.remove('hidden');
   document.getElementById('cardPreview').classList.add('hidden');
   document.getElementById('formPermisoTitulo').textContent = cfg.titulo;
-  // Auto-fill from PERSONAL_PACTO if available
-  var profData = currentUserObj ? PERSONAL_PACTO.find(function(p){ return p.id === currentUser; }) : null;
-  if (profData) {
-    document.getElementById('perm_nombre').value = profData.nombre;
-    document.getElementById('perm_cargo').value  = profData.cargo;
-    document.getElementById('perm_run').value    = profData.rut || '';
-  } else if (currentUserObj) {
-    var nombre = ((currentUserObj.ap_pat||'') + ' ' + (currentUserObj.ap_mat||'') + ' ' + (currentUserObj.nombre||'')).trim().toUpperCase();
+  if (currentUserObj) {
+    const nombre = ((currentUserObj.ap_pat||'') + ' ' + (currentUserObj.ap_mat||'') + ' ' + (currentUserObj.nombre||'')).trim().toUpperCase();
     document.getElementById('perm_nombre').value = nombre;
     document.getElementById('perm_cargo').value  = currentUserObj.cargo||'';
   }
@@ -4581,7 +4298,6 @@ function devGenerarComprobante() {
     direccion:pac.direccion, comuna:pac.comuna, telefono:pac.telefono,
     transportes:(devolucionData.transportes||[]).slice(), valores:JSON.parse(JSON.stringify(devValores)),
     acomp:devolucionData.acomp, empresaBus:empresaBus, total:total, obs:obs };
-  syncDevolucionBD(reg);
   devolucionData.historial.unshift(reg);
   if (devolucionData.historial.length > 50) devolucionData.historial.pop();
   localStorage.setItem('devolucionHistorial', JSON.stringify(devolucionData.historial));
