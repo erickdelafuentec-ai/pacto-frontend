@@ -5,80 +5,266 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sistema PACTO</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.min.mjs" type="module"></script>
+<script>
+window.pdfjsLibPromise = import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.min.mjs').then(function(mod){
+  if (mod && mod.GlobalWorkerOptions) {
+    mod.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.mjs';
+  }
+  return mod;
+}).catch(function(){ return null; });
+</script>
+<script>
 // ════════════════════════════════════════════════════════════
 // LICENCIAS MÉDICAS
 // ════════════════════════════════════════════════════════════
 var licenciasData = [];
 try { licenciasData = JSON.parse(localStorage.getItem('licenciasData')||'[]'); } catch(e) {}
 
+function normalizarRut(rut) {
+  return String(rut || '').toUpperCase().replace(/[^0-9K]/g, '');
+}
+
+function rutSoloDigitosDV(rut) {
+  return normalizarRut(rut);
+}
+
+function formatearRutVisual(rut) {
+  var limpio = normalizarRut(rut);
+  if (!limpio) return '';
+  var cuerpo = limpio.slice(0, -1);
+  var dv = limpio.slice(-1);
+  var out = '';
+  while (cuerpo.length > 3) {
+    out = '.' + cuerpo.slice(-3) + out;
+    cuerpo = cuerpo.slice(0, -3);
+  }
+  return cuerpo + out + '-' + dv;
+}
+
+function getLicStaff() {
+  var staff = [];
+  if (Array.isArray(window.STAFF_DB) && window.STAFF_DB.length) {
+    staff = window.STAFF_DB.map(function(p, idx){
+      return {
+        id: p.id || ('staff_' + idx),
+        nombre: p.nombre || '',
+        rut: p.rut || '',
+        cargo: p.cargo || '',
+        est: p.est || '',
+        horas: p.horas || ''
+      };
+    });
+  }
+  if (!staff.length && typeof getUsuarios === 'function') {
+    try {
+      staff = (getUsuarios() || []).map(function(u, idx){
+        return {
+          id: u.username || ('user_' + idx),
+          nombre: ((u.nombre||'') + ' ' + (u.ap_pat||'') + ' ' + (u.ap_mat||'')).trim(),
+          rut: u.rut || '',
+          cargo: u.cargo || '',
+          est: u.est || '',
+          horas: u.horas || ''
+        };
+      });
+    } catch(e) {}
+  }
+  return staff;
+}
+
+function buscarStaffPorRut(rut) {
+  var limpio = normalizarRut(rut);
+  if (!limpio) return null;
+  var staff = getLicStaff();
+  for (var i = 0; i < staff.length; i++) {
+    var item = staff[i];
+    var base = normalizarRut(item.rut || '');
+    if (!base) continue;
+    if (base === limpio || base.indexOf(limpio) === 0 || limpio.indexOf(base) === 0) {
+      return item;
+    }
+  }
+  return null;
+}
+
+function renderLicStaffInfo(found, ok) {
+  var infoEl = document.getElementById('licStaffInfo');
+  if (!infoEl) return;
+  if (!found || ok === false) {
+    infoEl.innerHTML = '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:12px 16px;margin-top:8px;color:#b91c1c;font-size:13px">⚠️ Funcionario no encontrado en la base de datos PACTO.</div>';
+    return;
+  }
+  infoEl.innerHTML =
+    '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 16px;margin-top:8px">' +
+    '<div style="font-size:14px;font-weight:700;color:#0f172a">' + (found.nombre || 'Sin nombre') + '</div>' +
+    '<div style="font-size:12px;color:#64748b;margin-top:3px">' + (found.cargo || 'Sin cargo') + ' · ' + (found.est || 'HGGB') + ' · ' + ((found.horas || '—')) + 'h</div>' +
+    '<div style="font-size:12px;color:#1565c0;margin-top:2px">RUT: ' + formatearRutVisual(found.rut || '') + '</div>' +
+    '</div>';
+}
+
+function seleccionarLicFuncionario(found) {
+  var sel = document.getElementById('licFuncionario');
+  if (!sel || !found) return;
+  var clean = normalizarRut(found.rut || '');
+  for (var i = 0; i < sel.options.length; i++) {
+    var opt = sel.options[i];
+    if (normalizarRut(opt.getAttribute('data-rut') || '') === clean) {
+      sel.selectedIndex = i;
+      break;
+    }
+  }
+  var runEl = document.getElementById('licRun');
+  if (runEl) runEl.value = formatearRutVisual(found.rut || '');
+}
+
+function bindLicenciasEventos() {
+  var inputRutLic = document.getElementById('licRutBusca');
+  var btnBuscarLic = document.getElementById('btnLicBuscarRut');
+  if (btnBuscarLic) {
+    btnBuscarLic.onclick = function(ev) {
+      if (ev) ev.preventDefault();
+      return licBuscarPorRut();
+    };
+  }
+  if (inputRutLic) {
+    inputRutLic.onkeydown = function(ev) {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        licBuscarPorRut();
+      }
+    };
+  }
+}
+
 function initLicencias() {
-  // Populate funcionario select
   var sel = document.getElementById('licFuncionario');
   if (sel) {
     sel.innerHTML = '<option value="">— Seleccione funcionario —</option>';
-    var staff = (typeof PERSONAL_PACTO !== 'undefined') ? PERSONAL_PACTO : getUsuarios().map(function(u){ return {id:u.username, nombre:u.nombre+' '+u.ap_pat, rut:u.rut||'', cargo:u.cargo||''}; });
-    staff.forEach(function(p){
+    getLicStaff().forEach(function(p, idx){
       var o = document.createElement('option');
-      o.value = p.id; o.textContent = p.nombre + ' — ' + p.cargo;
+      o.value = p.id || ('staff_' + idx);
+      o.setAttribute('data-rut', p.rut || '');
+      o.textContent = (p.nombre || 'Sin nombre') + ' — ' + (p.cargo || 'Sin cargo');
       sel.appendChild(o);
     });
   }
+  var infoEl = document.getElementById('licStaffInfo');
+  if (infoEl) infoEl.innerHTML = '';
+  var inputEl = document.getElementById('licRutBusca');
+  if (inputEl) inputEl.value = '';
+  var runEl = document.getElementById('licRun');
+  if (runEl) runEl.value = '';
   renderLicencias();
+  bindLicenciasEventos();
 }
 
-
-// Licencias: buscar por RUT
 function licBuscarPorRut() {
-  var rutInput = ((document.getElementById('licRutBusca')||{}).value||'').trim().replace(/\./g,'').replace(/-/g,'').toUpperCase();
-  if (!rutInput) return;
-  var found = STAFF_DB.find(function(p){
-    return p.rut.replace(/\./g,'').replace(/-/g,'').toUpperCase() === rutInput ||
-           p.rut.replace(/\./g,'').replace(/-/g,'').toUpperCase().startsWith(rutInput);
-  });
-  var infoEl = document.getElementById('licStaffInfo');
-  if (found) {
-    // Select in dropdown
+  try {
+    var inputEl = document.getElementById('licRutBusca');
+    var infoEl = document.getElementById('licStaffInfo');
+    var runEl = document.getElementById('licRun');
     var sel = document.getElementById('licFuncionario');
-    if (sel) {
-      for (var i=0; i<sel.options.length; i++) {
-        if (sel.options[i].text.includes(found.nombre.split(' ')[0]) && sel.options[i].text.includes(found.nombre.split(' ')[1]||'')) {
-          sel.selectedIndex = i; break;
+    var rutInput = ((inputEl || {}).value || '').trim();
+    var limpio = String(rutInput || '').toUpperCase().replace(/[^0-9K]/g, '');
+
+    if (!limpio) {
+      if (runEl) runEl.value = '';
+      if (sel) sel.value = '';
+      if (infoEl) infoEl.innerHTML = '<div style="background:#fff7ed;border:1px solid #fdba74;border-radius:10px;padding:12px 16px;margin-top:8px;color:#9a3412;font-size:13px">Ingrese un RUT para buscar.</div>';
+      if (inputEl) inputEl.focus();
+      return null;
+    }
+
+    var base = [];
+    if (Array.isArray(window.STAFF_DB)) {
+      base = window.STAFF_DB.slice();
+    } else if (typeof getLicStaff === 'function') {
+      base = getLicStaff();
+    }
+
+    var found = (typeof buscarStaffPorRut === 'function') ? buscarStaffPorRut(limpio) : null;
+    for (var i = 0; !found && i < base.length; i++) {
+      var item = base[i] || {};
+      var rutBase = String(item.rut || '').toUpperCase().replace(/[^0-9K]/g, '');
+      if (!rutBase) continue;
+      if (rutBase === limpio || rutBase.indexOf(limpio) === 0 || limpio.indexOf(rutBase) === 0) {
+        found = item;
+        break;
+      }
+    }
+
+    if ((!base || !base.length) && infoEl) {
+      infoEl.innerHTML = '<div style="background:#fff7ed;border:1px solid #fdba74;border-radius:10px;padding:12px 16px;margin-top:8px;color:#9a3412;font-size:13px">No se cargó la base de funcionarios. Se usará el selector manual.</div>';
+    }
+
+    if (!found && sel && sel.options && sel.options.length) {
+      for (var j = 0; j < sel.options.length; j++) {
+        var opt = sel.options[j];
+        var rutOpt = String((opt.getAttribute('data-rut') || '')).toUpperCase().replace(/[^0-9K]/g, '');
+        if (rutOpt && (rutOpt === limpio || rutOpt.indexOf(limpio) === 0 || limpio.indexOf(rutOpt) === 0)) {
+          found = {
+            id: opt.value,
+            nombre: (opt.textContent || '').split(' — ')[0],
+            rut: opt.getAttribute('data-rut') || '',
+            cargo: ((opt.textContent || '').split(' — ')[1] || '')
+          };
+          break;
         }
       }
     }
-    var runEl = document.getElementById('licRun');
-    if (runEl) runEl.value = found.rut;
-    if (infoEl) infoEl.innerHTML =
-      '<div style="background:rgba(30,136,229,0.1);border:1px solid rgba(30,136,229,0.25);border-radius:10px;padding:12px 16px;margin-top:8px">' +
-      '<div style="font-size:14px;font-weight:700;color:var(--white)">' + found.nombre + '</div>' +
-      '<div style="font-size:12px;color:var(--gris-tex);margin-top:3px">' + found.cargo + ' · ' + found.est + ' · ' + (found.horas||'—') + 'h</div>' +
-      '<div style="font-size:12px;color:var(--accent2);margin-top:2px">RUT: ' + found.rut + '</div>' +
-      '</div>';
-  } else {
-    if (infoEl) infoEl.innerHTML = '<div style="color:#e53935;font-size:13px;margin-top:6px">⚠️ Funcionario no encontrado en la base de datos PACTO.</div>';
+
+    if (found) {
+      var rutMostrado = (typeof formatearRutVisual === 'function') ? formatearRutVisual(found.rut || limpio) : (found.rut || rutInput);
+      if (inputEl) inputEl.value = rutMostrado;
+      if (runEl) runEl.value = rutMostrado;
+      if (sel && sel.options && sel.options.length) {
+        for (var k = 0; k < sel.options.length; k++) {
+          var opt2 = sel.options[k];
+          var rutOpt2 = String((opt2.getAttribute('data-rut') || '')).toUpperCase().replace(/[^0-9K]/g, '');
+          if (rutOpt2 === String(found.rut || '').toUpperCase().replace(/[^0-9K]/g, '')) {
+            sel.selectedIndex = k;
+            break;
+          }
+        }
+      }
+      if (infoEl) {
+        infoEl.innerHTML =
+          '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 16px;margin-top:8px">' +
+          '<div style="font-size:14px;font-weight:700;color:#0f172a">' + (found.nombre || 'Sin nombre') + '</div>' +
+          '<div style="font-size:12px;color:#64748b;margin-top:3px">' + (found.cargo || 'Sin cargo') + (found.est ? ' · ' + found.est : '') + (found.horas ? ' · ' + found.horas + 'h' : '') + '</div>' +
+          '<div style="font-size:12px;color:#1565c0;margin-top:2px">RUT: ' + rutMostrado + '</div>' +
+          '</div>';
+      }
+      return found;
+    }
+
+    if (runEl) runEl.value = '';
+    if (sel) sel.value = '';
+    if (infoEl) infoEl.innerHTML = '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:12px 16px;margin-top:8px;color:#b91c1c;font-size:13px">⚠️ Funcionario no encontrado en la base de datos PACTO.</div>';
+    return null;
+  } catch (e) {
+    console.error('Error en licBuscarPorRut:', e);
+    alert('Ocurrió un error al buscar el RUT en Licencias Médicas.');
+    return null;
   }
 }
 
 function licBuscarPorRun(val) {
   if (!val || val.length < 3) {
-    document.getElementById('licRunResultado').textContent = '';
+    var el0 = document.getElementById('licRunResultado');
+    if (el0) el0.textContent = '';
     return;
   }
-  var clean = val.replace(/\./g,'').replace(/-/g,'').toLowerCase();
-  var found = PERSONAL_PACTO.find(function(p){
-    return p.rut.replace(/\./g,'').replace(/-/g,'').toLowerCase().startsWith(clean);
-  });
+  var found = buscarStaffPorRut(val);
   var resEl = document.getElementById('licRunResultado');
   if (found) {
-    // Auto-select in dropdown
-    var sel = document.getElementById('licFuncionario');
-    if (sel) {
-      for (var i=0; i<sel.options.length; i++) {
-        if (sel.options[i].value === found.id) { sel.selectedIndex = i; break; }
-      }
-    }
-    document.getElementById('licRun').value = found.rut;
+    seleccionarLicFuncionario(found);
+    renderLicStaffInfo(found, true);
     if (resEl) resEl.innerHTML = '✅ ' + found.nombre;
   } else {
     if (resEl) resEl.innerHTML = '<span style="color:#dc2626">No encontrado</span>';
@@ -88,11 +274,15 @@ function licBuscarPorRun(val) {
 function licCargarDatos() {
   var sel = document.getElementById('licFuncionario');
   if (!sel || !sel.value) return;
-  var staff = (typeof PERSONAL_PACTO !== 'undefined') ? PERSONAL_PACTO : [];
-  var prof = staff.find(function(p){ return p.id === sel.value; });
+  var prof = getLicStaff().find(function(p){ return (p.id || '') === sel.value; });
+  if (!prof) {
+    var rutSel = (sel.options[sel.selectedIndex]||{}).dataset ? sel.options[sel.selectedIndex].dataset.rut : '';
+    prof = buscarStaffPorRut(rutSel);
+  }
   if (prof) {
     var runEl = document.getElementById('licRun');
     if (runEl) runEl.value = prof.rut || '';
+    renderLicStaffInfo(prof, true);
   }
 }
 
@@ -156,7 +346,7 @@ function renderLicencias() {
       '<div style="color:var(--muted)">' + r.tipo + '</div>' +
       '<div>' + r.fi + '</div>' +
       '<div>' + r.ft + '</div>' +
-      '<div style="font-weight:700;color:var(--acc2)">' + r.dias + ' días</div>' +
+      '<div style="font-weight:700;color:#1565c0">' + r.dias + ' días</div>' +
       '<div><button class="btn btn-sm btn-danger" onclick="eliminarLicencia(' + r.id + ')">✕</button></div>' +
     '</div>';
   }).join('');
@@ -173,6 +363,18 @@ function eliminarLicencia(id) {
   renderLicencias();
 }
 
+
+window.addEventListener('DOMContentLoaded', function(){
+  try {
+    var btn = document.getElementById('btnLicBuscarRut');
+    var inp = document.getElementById('licRutBusca');
+    if (btn) btn.addEventListener('click', function(ev){ ev.preventDefault(); licBuscarPorRut(); });
+    if (inp) {
+      inp.addEventListener('keypress', function(ev){ if (ev.key === 'Enter') { ev.preventDefault(); licBuscarPorRut(); } });
+      inp.addEventListener('change', function(){ licBuscarPorRut(); });
+    }
+  } catch(e) { console.error(e); }
+});
 // ── guardarPermiso and historial ──────────────────────────────
 var permisosHistorial = [];
 try { permisosHistorial = JSON.parse(localStorage.getItem('permisosHistorial')||'[]'); } catch(e) {}
@@ -273,7 +475,7 @@ function dashRenderAusentismo() {
 // ════════════════════════════════════════════════════════════
 // STAFF_DB desde planilla oficial
 // ════════════════════════════════════════════════════════════
-const STAFF_DB = [{"nombre": "Maria Cecilia Campos Arcos", "rut": "15.134.441-0", "cargo": "Oftalmóloga", "est": "HGGB", "horas": 11}, {"nombre": "Peter Rodrigo Hidalgo Pino", "rut": "15.592.283-4", "cargo": "Somatoprotesista", "est": "HGGB", "horas": 11}, {"nombre": "Luz María Ceballos Guajardo", "rut": "14.355.930-0", "cargo": "Psiquiatra", "est": "COSAM", "horas": 11}, {"nombre": "Juan José Sepúlveda Avilés", "rut": "17.044.929-0", "cargo": "Tecnólogo Médico", "est": "HGGB", "horas": 44}, {"nombre": "Claudia Francisca Obreque Aedo", "rut": "17.115.025-6", "cargo": "Trabajadora Social", "est": "HGGB", "horas": 44}, {"nombre": "Jeannette Patricia Guenuman Aguilar", "rut": "17.719.982-6", "cargo": "Terapeuta Ocupacional", "est": "HGGB", "horas": 44}, {"nombre": "Jacqueline Liria Cortés Fuentes", "rut": "9168151-K", "cargo": "Trabajadora Social", "est": "HGGB", "horas": 44}, {"nombre": "Erick De La Fuente Campos", "rut": "17892244-0", "cargo": "Administrativo", "est": "HGGB", "horas": 44}, {"nombre": "Christopher Richard Rauld Martinez", "rut": "16.628.403-1", "cargo": "Psicólogo", "est": "COSAM", "horas": 44}, {"nombre": "Gonzalo Daniel Mac-kay Valenzuela", "rut": "17.757.032-K", "cargo": "Psicólogo", "est": "COSAM", "horas": 44}, {"nombre": "Ricardo José Frodden Reyes", "rut": "9277118-0", "cargo": "Referente / Jefatura", "est": "PRAIS", "horas": 0}];
+window.STAFF_DB = [{"nombre": "Maria Cecilia Campos Arcos", "rut": "15.134.441-0", "cargo": "Oftalmóloga", "est": "HGGB", "horas": 11}, {"nombre": "Peter Rodrigo Hidalgo Pino", "rut": "15.592.283-4", "cargo": "Somatoprotesista", "est": "HGGB", "horas": 11}, {"nombre": "Luz María Ceballos Guajardo", "rut": "14.355.930-0", "cargo": "Psiquiatra", "est": "COSAM", "horas": 11}, {"nombre": "Juan José Sepúlveda Avilés", "rut": "17.044.929-0", "cargo": "Tecnólogo Médico", "est": "HGGB", "horas": 44}, {"nombre": "Claudia Francisca Obreque Aedo", "rut": "17.115.025-6", "cargo": "Trabajadora Social", "est": "HGGB", "horas": 44}, {"nombre": "Jeannette Patricia Guenuman Aguilar", "rut": "17.719.982-6", "cargo": "Terapeuta Ocupacional", "est": "HGGB", "horas": 44}, {"nombre": "Jacqueline Liria Cortés Fuentes", "rut": "9168151-K", "cargo": "Trabajadora Social", "est": "HGGB", "horas": 44}, {"nombre": "Erick De La Fuente Campos", "rut": "17892244-0", "cargo": "Administrativo", "est": "HGGB", "horas": 44}, {"nombre": "Christopher Richard Rauld Martinez", "rut": "16.628.403-1", "cargo": "Psicólogo", "est": "COSAM", "horas": 44}, {"nombre": "Gonzalo Daniel Mac-kay Valenzuela", "rut": "17.757.032-K", "cargo": "Psicólogo", "est": "COSAM", "horas": 44}, {"nombre": "Ricardo José Frodden Reyes", "rut": "9277118-0", "cargo": "Referente / Jefatura", "est": "PRAIS", "horas": 0}];
 
 // ════════════════════════════════════════════════════════════
 // AGENDA CALENDARIO MENSUAL POR PROFESIONAL
@@ -611,7 +813,7 @@ function agCalRender() {
         if (isAtencion && !isPast) {
           var color = libres > 0 ? '#15803d' : '#dc2626';
           var bg    = libres > 0 ? '#dcfce7' : '#fee2e2';
-          html += '<div onclick="agCalSeleccionarDia('' + diaName + '','' + dateStr + '')" style="cursor:pointer;background:' + bg + ';color:' + color + ';font-size:10px;font-weight:700;padding:3px 6px;border-radius:4px;text-align:center;margin-top:2px">' +
+          html += '<div onclick="agCalSeleccionarDia(\'' + diaName + '\',\'' + dateStr + '\')" style="cursor:pointer;background:' + bg + ';color:' + color + ';font-size:10px;font-weight:700;padding:3px 6px;border-radius:4px;text-align:center;margin-top:2px">' +
             (libres > 0 ? libres + ' libre' + (libres!==1?'s':'') : 'Sin cupos') + '</div>';
           if (diaName) html += '<div style="font-size:9px;color:#64748b;margin-top:2px">' + diaName.slice(0,3) + '</div>';
         }
@@ -973,6 +1175,31 @@ function exportarHistorialPDF() {
   .btn-warning { background:#fffbeb; color:#d97706; border:1px solid #fde68a; border-radius:6px; padding:10px 20px; cursor:pointer; font-family:'Plus Jakarta Sans',sans-serif; font-size:13px; font-weight:700; transition:all 0.2s; }
   .btn-warning:hover { background:#fef9c3; }
 
+  /* Ajustes visuales Personal PACTO */
+  #screenPersonal,
+  #screenPersonal .inner-screen { background:transparent !important; }
+  #screenPersonal .card,
+  #screenPersonal #cardSelectorPermiso,
+  #screenPersonal #cardFormPermiso,
+  #screenPersonal #cardPreview { background:#ffffff !important; border:1px solid #dbeafe !important; box-shadow:0 4px 14px rgba(21,101,192,0.08) !important; }
+  #screenPersonal .card-header { color:#1565c0 !important; border-bottom:1px solid #dbeafe !important; }
+  #screenPersonal .form-section { background:#f8fbff !important; border:1px solid #dbeafe !important; }
+  #screenPersonal .form-section-title,
+  #screenPersonal .screen-subtitle,
+  #screenPersonal .perm-desc,
+  #screenPersonal .check-group span,
+  #screenPersonal .subtitulo { color:#475569 !important; }
+  #screenPersonal .perm-title,
+  #screenPersonal .section-title,
+  #screenPersonal .sec-titulo,
+  #screenPersonal .h1,
+  #screenPersonal .h2 { color:#0f172a !important; }
+  #screenPersonal label { color:#475569 !important; }
+  #screenPersonal input,
+  #screenPersonal select,
+  #screenPersonal textarea { background:#ffffff !important; color:#0f172a !important; border:1px solid #cbd5e1 !important; }
+  #screenPersonal .perm-card { background:#ffffff !important; border:1px solid #dbeafe !important; box-shadow:0 2px 10px rgba(21,101,192,0.06) !important; }
+
   /* ── BACK BUTTON ─────────────────────────────────────── */
   .back-btn {
     background:#f1f5f9; border:1px solid #cbd5e1;
@@ -1079,10 +1306,38 @@ function exportarHistorialPDF() {
   .divider { border:none; border-top:1px solid rgba(124,58,237,0.15); margin:20px 0; }
 
   /* ── UTILITY ─────────────────────────────────────────── */
+
+  .tool-grid { display:grid; grid-template-columns:1.1fr 1fr; gap:18px; align-items:start; }
+  .tool-dropzone { border:2px dashed #93c5fd; background:#f8fbff; border-radius:14px; padding:22px; text-align:center; transition:all .2s; }
+  .tool-dropzone:hover { border-color:#1565c0; background:#eff6ff; }
+  .tool-dropzone input[type='file'] { margin-top:10px; }
+  .tool-note { font-size:12px; color:#64748b; line-height:1.55; }
+  .tool-summary { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; font-size:12px; color:#334155; }
+  .tool-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
+  .tool-badge { display:inline-block; padding:4px 10px; border-radius:999px; background:#eff6ff; color:#1565c0; font-size:11px; font-weight:700; }
+
   .hidden { display:none !important; }
   .form-row   { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
   .form-row-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; margin-bottom:14px; }
   .form-section { background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:18px 20px; margin-bottom:16px; }
+
+  #screenPersonal .card,
+  #screenPersonal .form-section,
+  #screenPersonal .perm-card,
+  #screenPersonal .panel,
+  #screenPersonal table,
+  #screenPersonal .perm-historial-card { background:#ffffff !important; color:#0f172a !important; }
+  #screenPersonal .card-header,
+  #screenPersonal .section-title,
+  #screenPersonal .sec-titulo,
+  #screenPersonal .screen-title,
+  #screenPersonal label,
+  #screenPersonal th,
+  #screenPersonal td { color:#0f172a !important; }
+  #screenPersonal input,
+  #screenPersonal select,
+  #screenPersonal textarea { background:#ffffff !important; color:#0f172a !important; border-color:#cbd5e1 !important; }
+
   .form-section-title { font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:700; color:#1565c0; margin-bottom:14px; padding-bottom:8px; border-bottom:1px solid #e2e8f0; }
   .dos-col { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
 
@@ -1091,7 +1346,7 @@ function exportarHistorialPDF() {
   .alert-success { background:#f0fdf4; border-color:#bbf7d0; color:#15803d; }
   .alert-info    { background:#eff6ff; border-color:#bfdbfe; color:#1d4ed8; }
   .alert-warning { background:#fffbeb; border-color:#fde68a; color:#d97706; }
-  .aviso { font-size:12px; color:#fbbf24; padding:10px 14px; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.2); border-radius:8px; }
+  .aviso { font-size:12px; color:#b45309; padding:10px 14px; background:#fffbeb; border:1px solid #fde68a; border-radius:8px; }
 
   .etiqueta { font-size:10px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:1px; }
   .valor    { font-size:14px; color:var(--white); font-weight:500; margin-top:3px; }
@@ -1120,8 +1375,8 @@ function exportarHistorialPDF() {
   .admin-tab.active,.admin-tab:hover { background:#eff6ff; border-color:#93c5fd; color:#1565c0; }
 
   /* ── TS TABS ─────────────────────────────────────────── */
-  .ts-tab { background:rgba(35,21,88,0.5); border:none; border-bottom:2px solid transparent; padding:9px 18px; cursor:pointer; font-size:12px; font-weight:700; color:var(--muted); transition:all 0.2s; font-family:'Plus Jakarta Sans',sans-serif; letter-spacing:0.3px; white-space:nowrap; }
-  .ts-tab.active,.ts-tab:hover { color:var(--acc2); border-bottom-color:var(--acc2); }
+  .ts-tab { background:#f8fafc; border:none; border-bottom:2px solid transparent; padding:9px 18px; cursor:pointer; font-size:12px; font-weight:700; color:#64748b; transition:all 0.2s; font-family:'Plus Jakarta Sans',sans-serif; letter-spacing:0.3px; white-space:nowrap; }
+  .ts-tab.active,.ts-tab:hover { color:#1565c0; border-bottom-color:#1565c0; background:#eff6ff; }
   .ts-section { display:none; }
   .ts-section.active { display:block; }
 
@@ -1165,14 +1420,14 @@ function exportarHistorialPDF() {
 
   /* ── PERMISOS ────────────────────────────────────────── */
   .perm-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(195px,1fr)); gap:12px; margin-bottom:24px; }
-  .perm-card { background:rgba(19,13,46,0.7); border:1px solid rgba(124,58,237,0.2); border-radius:14px; padding:22px 16px; cursor:pointer; text-align:center; transition:all 0.22s; }
-  .perm-card:hover { transform:translateY(-3px); border-color:rgba(168,85,247,0.5); box-shadow:0 12px 32px rgba(0,0,0,0.4), 0 0 20px rgba(124,58,237,0.15); }
+  .perm-card { background:#ffffff; border:1px solid #dbeafe; border-radius:14px; padding:22px 16px; cursor:pointer; text-align:center; transition:all 0.22s; box-shadow:0 4px 14px rgba(21,101,192,0.08); }
+  .perm-card:hover { transform:translateY(-3px); border-color:#93c5fd; box-shadow:0 10px 24px rgba(21,101,192,0.14); background:#f8fbff; }
   .perm-icon  { font-size:26px; margin-bottom:10px; }
-  .perm-title { font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:700; color:var(--white); margin-bottom:6px; }
+  .perm-title { font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:700; color:#0f172a; margin-bottom:6px; }
   .perm-desc  { font-size:11px; color:var(--muted); line-height:1.5; }
 
   /* ── SM ──────────────────────────────────────────────── */
-  .sm-pregunta { background:rgba(35,21,88,0.4); border:1px solid rgba(124,58,237,0.15); border-radius:12px; padding:14px 16px; margin-bottom:10px; }
+  .sm-pregunta { background:#ffffff; border:1px solid #dbeafe; border-radius:12px; padding:14px 16px; margin-bottom:10px; box-shadow:0 1px 3px rgba(15,23,42,0.05); }
   .sm-texto { font-size:14px; color:var(--white); margin-bottom:12px; }
   .sm-opciones { display:flex; gap:10px; }
   .sm-opcion { flex:1; text-align:center; padding:9px; border-radius:9px; border:1px solid rgba(124,58,237,0.25); cursor:pointer; font-size:13px; font-weight:700; color:var(--muted); transition:all 0.2s; background:rgba(35,21,88,0.5); font-family:'Plus Jakarta Sans',sans-serif; }
@@ -1970,6 +2225,16 @@ function exportarHistorialPDF() {
         <div class="card-title" style="color:#6366f1">Dashboard Estadísticas</div>
         <div class="card-desc">Reportes y estadísticas de atenciones por programa, profesional y período.</div>
       </div>
+      <div class="menu-card" style="border-top:4px solid #0ea5e9" onclick="goTo('screenCruceExcel')">
+        <div class="card-icon">📎</div>
+        <div class="card-title" style="color:#0ea5e9">Cruce de Excel</div>
+        <div class="card-desc">Sube dos archivos Excel, crúzalos automáticamente por la columna que indiques y descarga el resultado.</div>
+      </div>
+      <div class="menu-card" style="border-top:4px solid #8b5cf6" onclick="goTo('screenConversor')">
+        <div class="card-icon">🔄</div>
+        <div class="card-title" style="color:#8b5cf6">Transformar Archivos</div>
+        <div class="card-desc">Convierte Excel a PDF o Word, y PDF a Word directamente desde el sistema.</div>
+      </div>
     </div>
   </div>
 </div>
@@ -2396,7 +2661,7 @@ function exportarHistorialPDF() {
 <div class="screen" id="screenPersonal">
   <div class="inner-screen" style="max-width:860px">
     <button class="back-btn" onclick="goTo('screenMenu')">← Volver al Menú</button>
-    <div class="screen-title" style="color:#7c3aed;margin-top:16px">🗂️ Personal PACTO</div>
+    <div class="screen-title" style="color:#1565c0;margin-top:16px">🗂️ Personal PACTO</div>
     <div class="screen-subtitle">Solicitudes de permisos administrativos y documentos oficiales.</div>
     <!-- Historial de permisos guardados -->
     <div class="card" style="margin-bottom:20px">
@@ -2430,7 +2695,7 @@ function exportarHistorialPDF() {
       </div>
       <div class="form-section">
         <div class="form-section-title">👤 Datos del Funcionario</div>
-        <div id="permSelectorWrap" style="display:none;margin-bottom:14px;padding:12px 14px;background:rgba(168,85,247,0.1);border:1px solid rgba(168,85,247,0.25);border-radius:10px">
+        <div id="permSelectorWrap" style="display:none;margin-bottom:14px;padding:12px 14px;background:rgba(21,101,192,0.08);border:1px solid rgba(21,101,192,0.18);border-radius:10px">
           <label style="font-size:11px;font-weight:700;color:var(--acc2);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:7px;display:block">⚡ Cargar datos de un funcionario PACTO</label>
           <select id="permSelectFunc" onchange="permCargarFuncionario()" style="width:100%;font-size:13px">
             <option value="">— Seleccione un funcionario —</option>
@@ -3067,14 +3332,23 @@ function togglePwd(id, btn) {
 // ============================================================
 // NAVEGACIÓN
 // ============================================================
+document.addEventListener('DOMContentLoaded', function(){
+  bindLicenciasEventos();
+});
+
 function goTo(screenId) {
+  document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+  var el = document.getElementById(screenId);
+  if (el) el.classList.add('active');
+
   if (screenId === 'screenActas')      { setTimeout(initActas, 100); }
   if (screenId === 'screenDashboard')  { setTimeout(dashRender, 100); }
   if (screenId === 'screenDevolucion') { setTimeout(initDevolucion, 50); }
   if (screenId === 'screenAgendar')    { resetAgendar(); }
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  const el = document.getElementById(screenId);
-  if (el) el.classList.add('active');
+  if (screenId === 'screenCruceExcel') { setTimeout(function(){ if (typeof excelLimpiar === 'function') excelLimpiar(); }, 30); }
+  if (screenId === 'screenConversor')  { setTimeout(function(){ if (typeof conversorActualizarUI === 'function') conversorActualizarUI(); }, 30); }
+  if (screenId === 'screenLicencias')  { setTimeout(function(){ try { initLicencias(); } catch(e) { console.error('Error initLicencias:', e); } }, 30); }
+  if (screenId === 'screenPersonal')   { setTimeout(function(){ try { document.querySelectorAll('#screenPersonal .card, #screenPersonal .form-section, #screenPersonal .perm-card').forEach(function(el){ el.style.background = '#ffffff'; el.style.color = '#0f172a'; }); } catch(e){} }, 30); }
   if (screenId === 'screenAgendados')  renderAgendados();
   if (screenId === 'screenTS')         renderTSHistorial();
 }
@@ -5512,6 +5786,107 @@ function dashRenderAgenda() {
 
 </script>
 
+
+<!-- ===================== SCREEN: CRUCE EXCEL ===================== -->
+<div class="screen" id="screenCruceExcel">
+  <div class="inner-screen" style="max-width:1100px">
+    <button class="back-btn" onclick="goTo('screenMenu')">← Volver al Menú</button>
+    <div class="screen-title" style="color:#0ea5e9;margin-top:16px">📎 Cruce Automático de Archivos Excel</div>
+    <div class="screen-subtitle">Sube dos planillas, elige la hoja y la columna llave en cada una, cruza la información y descarga el Excel final.</div>
+    <div class="tool-grid">
+      <div class="card">
+        <div class="card-header">1. Cargar planillas</div>
+        <div class="form-row">
+          <div>
+            <div class="tool-dropzone">
+              <div class="tool-badge">Archivo base</div>
+              <div style="margin-top:8px;font-weight:700;color:#0f172a">Excel principal</div>
+              <input type="file" id="excelBaseFile" accept=".xlsx,.xls,.csv" onchange="excelCargarArchivo('base', this.files[0])">
+              <div class="tool-note" id="excelBaseInfo" style="margin-top:10px">Aún no se ha cargado ningún archivo.</div>
+            </div>
+          </div>
+          <div>
+            <div class="tool-dropzone">
+              <div class="tool-badge" style="background:#f5f3ff;color:#7c3aed">Archivo a cruzar</div>
+              <div style="margin-top:8px;font-weight:700;color:#0f172a">Excel secundario</div>
+              <input type="file" id="excelCruceFile" accept=".xlsx,.xls,.csv" onchange="excelCargarArchivo('cruce', this.files[0])">
+              <div class="tool-note" id="excelCruceInfo" style="margin-top:10px">Aún no se ha cargado ningún archivo.</div>
+            </div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Hoja archivo base</label><select id="excelBaseSheet" onchange="excelActualizarColumnas('base')"></select></div>
+          <div class="form-group"><label>Hoja archivo cruce</label><select id="excelCruceSheet" onchange="excelActualizarColumnas('cruce')"></select></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Columna llave archivo base</label><select id="excelBaseKey"></select></div>
+          <div class="form-group"><label>Columna llave archivo cruce</label><select id="excelCruceKey"></select></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Tipo de cruce</label>
+            <select id="excelMergeMode">
+              <option value="left">Mantener todas las filas del archivo base</option>
+              <option value="inner">Solo filas que coinciden en ambos archivos</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Nombre del archivo final</label><input type="text" id="excelOutputName" value="cruce_pacto"></div>
+        </div>
+        <div class="tool-actions">
+          <button class="btn btn-primary" onclick="excelCruzarArchivos()">⚙️ Cruzar archivos</button>
+          <button class="btn btn-secondary" onclick="excelDescargarResultado()">⬇️ Descargar Excel</button>
+          <button class="btn btn-outline" onclick="excelLimpiar()">🧹 Limpiar</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">2. Resultado</div>
+        <div id="excelCruceResumen" class="tool-summary">Todavía no se ha realizado ningún cruce.</div>
+        <div id="excelPreviewWrap" style="margin-top:14px;max-height:520px;overflow:auto;border:1px solid #e2e8f0;border-radius:10px;background:#fff"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== SCREEN: CONVERSOR ===================== -->
+<div class="screen" id="screenConversor">
+  <div class="inner-screen" style="max-width:1100px">
+    <button class="back-btn" onclick="goTo('screenMenu')">← Volver al Menú</button>
+    <div class="screen-title" style="color:#8b5cf6;margin-top:16px">🔄 Transformar Archivos</div>
+    <div class="screen-subtitle">Convierte archivos comunes directamente en el navegador. PDF a Word exporta el texto del documento; Excel a PDF y Word exporta la tabla de la hoja elegida.</div>
+    <div class="tool-grid">
+      <div class="card">
+        <div class="card-header">Conversión rápida</div>
+        <div class="form-row">
+          <div class="form-group"><label>Tipo de conversión</label>
+            <select id="convTipo" onchange="conversorActualizarUI()">
+              <option value="excel-pdf">Excel → PDF</option>
+              <option value="excel-word">Excel → Word</option>
+              <option value="pdf-word">PDF → Word</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Nombre de salida</label><input type="text" id="convNombreSalida" value="archivo_convertido"></div>
+        </div>
+        <div class="tool-dropzone">
+          <div style="font-weight:700;color:#0f172a">Archivo a convertir</div>
+          <input type="file" id="convFile" accept=".xlsx,.xls,.csv,.pdf" onchange="conversorCargarArchivo(this.files[0])">
+          <div class="tool-note" id="convInfo" style="margin-top:10px">Seleccione primero el tipo de conversión y luego el archivo.</div>
+        </div>
+        <div id="convSheetWrap" class="form-group" style="margin-top:14px">
+          <label>Hoja del Excel</label><select id="convSheet"></select>
+        </div>
+        <div class="tool-actions">
+          <button class="btn btn-primary" onclick="conversorProcesar()">✨ Convertir y descargar</button>
+          <button class="btn btn-outline" onclick="conversorLimpiar()">🧹 Limpiar</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">Vista previa</div>
+        <div id="convResumen" class="tool-summary">No hay conversión lista todavía.</div>
+        <div id="convPreview" style="margin-top:14px;max-height:520px;overflow:auto;border:1px solid #e2e8f0;border-radius:10px;background:#fff"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ===================== SCREEN: DASHBOARD ===================== -->
 <div class="screen" id="screenDashboard">
 
@@ -5669,94 +6044,503 @@ function dashRenderAgenda() {
 
 <!-- ===================== SCREEN: LICENCIAS MÉDICAS ===================== -->
 <div class="screen" id="screenLicencias">
-<div class="inner-screen" style="max-width:960px">
-  <button class="back-btn" onclick="goTo('screenMenu')" style="margin-bottom:16px">← Menú</button>
-  <!-- Calendar view -->
-  <div class="card" style="margin-bottom:22px">
-    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-      <span>📅 Disponibilidad por Profesional</span>
-      <button class="btn btn-sm btn-secondary" onclick="toggleAgCal(this)">Ver calendario</button>
-    </div>
-    <div id="agCalWrap" style="display:none;padding-top:14px">
-      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;align-items:flex-end">
-        <div><label style="font-size:11px;font-weight:700;color:var(--gris-tex);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;display:block">Profesional</label>
-          <select id="agCalProf" onchange="renderAgendaCalendar()" style="font-size:13px;min-width:220px"></select>
+  <div class="inner-screen" style="max-width:960px">
+    <button class="back-btn" onclick="goTo('screenMenu')" style="margin-bottom:16px">← Menú</button>
+
+    <div class="screen-title" style="color:#e53935">🏥 Licencias Médicas</div>
+    <div class="screen-subtitle">Registro y seguimiento de licencias médicas del equipo PACTO · HGGB</div>
+
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header">➕ Registrar Nueva Licencia</div>
+
+      <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:14px;padding:12px 14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;flex-wrap:wrap">
+        <div style="flex:1;min-width:260px">
+          <label style="font-size:11px;font-weight:700;color:#1565c0;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:5px;display:block">🔍 Buscar funcionario por RUT</label>
+          <input type="text" id="licRutBusca" placeholder="Ej: 17.044.929-0" onblur="licBuscarPorRut()" onkeydown="if(event.key==='Enter'){event.preventDefault(); licBuscarPorRut();}" style="font-size:13px">
         </div>
-        <div><label style="font-size:11px;font-weight:700;color:var(--gris-tex);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;display:block">Mes</label>
-          <select id="agCalMes" onchange="renderAgendaCalendar()" style="font-size:13px;width:auto">
-            <option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option><option value="4">Abril</option><option value="5">Mayo</option><option value="6">Junio</option><option value="7">Julio</option><option value="8">Agosto</option><option value="9">Septiembre</option><option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
+        <button type="button" id="btnLicBuscarRut" class="btn btn-primary" onclick="licBuscarPorRut()">Buscar</button>
+      </div>
+
+      <div id="licStaffInfo"></div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Funcionario</label>
+          <select id="licFuncionario" onchange="licCargarDatos()"><option value="">— Seleccione funcionario —</option></select>
+        </div>
+        <div class="form-group">
+          <label>RUN</label>
+          <input type="text" id="licRun" placeholder="Autocompletado" readonly style="background:#eff6ff">
+        </div>
+      </div>
+
+      <div class="form-row-3">
+        <div class="form-group"><label>Fecha inicio</label><input type="date" id="licFechaInicio" onchange="licCalcularDias()"></div>
+        <div class="form-group"><label>Fecha término</label><input type="date" id="licFechaTermino" onchange="licCalcularDias()"></div>
+        <div class="form-group"><label>Días totales</label><input type="number" id="licDias" readonly style="background:#eff6ff"></div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Tipo de licencia</label>
+          <select id="licTipo">
+            <option>Enfermedad común</option>
+            <option>Accidente laboral</option>
+            <option>Enfermedad profesional</option>
+            <option>Maternal / Pre y postnatal</option>
+            <option>Paternal</option>
+            <option>Cuidado hijo enfermo</option>
+            <option>Otro</option>
           </select>
         </div>
-        <div><label style="font-size:11px;font-weight:700;color:var(--gris-tex);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;display:block">Año</label>
-          <select id="agCalAnio" onchange="renderAgendaCalendar()" style="font-size:13px;width:auto">
-            <option value="2025">2025</option><option value="2026" selected>2026</option><option value="2027">2027</option>
+        <div class="form-group"><label>N° Licencia / Folio</label><input type="text" id="licFolio" placeholder="Ej: 2026-001"></div>
+      </div>
+
+      <div class="form-group">
+        <label>Observaciones</label>
+        <textarea id="licObs" rows="2" placeholder="Observaciones adicionales..."></textarea>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="guardarLicencia()">💾 Registrar Licencia</button>
+        <button class="btn btn-secondary" onclick="limpiarLicencia()">🔄 Limpiar</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+        <span>📋 Registro de Licencias</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <input type="text" id="licBusca" placeholder="Buscar..." oninput="renderLicencias()" style="font-size:12px;width:160px">
+          <select id="licFiltroTipo" onchange="renderLicencias()" style="font-size:12px;width:auto">
+            <option value="">Todos los tipos</option>
+            <option>Enfermedad común</option>
+            <option>Accidente laboral</option>
+            <option>Enfermedad profesional</option>
+            <option>Maternal / Pre y postnatal</option>
+            <option>Paternal</option>
+            <option>Cuidado hijo enfermo</option>
+            <option>Otro</option>
           </select>
         </div>
       </div>
-      <div id="agCalStats" style="font-size:12px;color:var(--gris-tex);margin-bottom:12px"></div>
-      <div id="agCalendar"></div>
+      <div id="licListado" style="overflow-x:auto;max-height:460px;overflow-y:auto"></div>
+      <div id="licStats" style="padding:10px 14px;font-size:12px;color:var(--gris-tex);border-top:1px solid rgba(30,136,229,0.1)"></div>
     </div>
-  </div>
-  <div class="screen-title" style="color:#e53935">🏥 Licencias Médicas</div>
-  <div class="screen-subtitle">Registro y seguimiento de licencias médicas del equipo PACTO · HGGB</div>
-  <div class="card" style="margin-bottom:20px">
-    <div class="card-header">➕ Registrar Nueva Licencia</div>
-    <!-- RUT search -->
-    <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:14px;padding:12px 14px;background:rgba(30,136,229,0.08);border:1px solid rgba(30,136,229,0.2);border-radius:10px">
-      <div style="flex:1">
-        <label style="font-size:11px;font-weight:700;color:var(--accent2);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:5px;display:block">🔍 Buscar funcionario por RUT</label>
-        <input type="text" id="licRutBusca" placeholder="Ej: 17.044.929-0" style="font-size:13px" onkeypress="if(event.key==='Enter')licBuscarPorRut()">
-      </div>
-      <button class="btn btn-primary" onclick="licBuscarPorRut()">Buscar</button>
-    </div>
-    <div id="licStaffInfo"></div>
-    <div class="form-row">
-      <div class="form-group"><label>Funcionario</label>
-        <select id="licFuncionario" onchange="licCargarDatos()"><option value="">— Seleccione funcionario —</option></select>
-      </div>
-      <div class="form-group"><label>RUN</label>
-        <input type="text" id="licRun" placeholder="Autocompletado" readonly style="background:rgba(21,101,192,0.08)">
-      </div>
-    </div>
-    <div class="form-row">
-      <div class="form-group"><label>Fecha inicio</label><input type="date" id="licFechaInicio"></div>
-      <div class="form-group"><label>Fecha término</label><input type="date" id="licFechaTermino" onchange="licCalcularDias()"></div>
-      <div class="form-group"><label>Días totales</label><input type="number" id="licDias" readonly style="background:rgba(21,101,192,0.08)"></div>
-    </div>
-    <div class="form-row">
-      <div class="form-group"><label>Tipo de licencia</label>
-        <select id="licTipo">
-          <option>Enfermedad común</option><option>Accidente laboral</option>
-          <option>Enfermedad profesional</option><option>Maternal / Pre y postnatal</option>
-          <option>Paternal</option><option>Cuidado hijo enfermo</option><option>Otro</option>
-        </select>
-      </div>
-      <div class="form-group"><label>N° Licencia / Folio</label><input type="text" id="licFolio" placeholder="Ej: 2024-001"></div>
-    </div>
-    <div class="form-group"><label>Observaciones</label>
-      <textarea id="licObs" rows="2" placeholder="Observaciones adicionales..."></textarea>
-    </div>
-    <div style="display:flex;gap:10px;margin-top:8px">
-      <button class="btn btn-primary" onclick="guardarLicencia()">💾 Registrar Licencia</button>
-      <button class="btn btn-secondary" onclick="limpiarLicencia()">🔄 Limpiar</button>
-    </div>
-  </div>
-  <div class="card">
-    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-      <span>📋 Registro de Licencias</span>
-      <div style="display:flex;gap:8px">
-        <input type="text" id="licBusca" placeholder="Buscar..." oninput="renderLicencias()" style="font-size:12px;width:160px">
-        <select id="licFiltroTipo" onchange="renderLicencias()" style="font-size:12px;width:auto">
-          <option value="">Todos los tipos</option>
-          <option>Enfermedad común</option><option>Accidente laboral</option>
-          <option>Maternal / Pre y postnatal</option><option>Paternal</option><option>Cuidado hijo enfermo</option>
-        </select>
-      </div>
-    </div>
-    <div id="licListado" style="overflow-x:auto;max-height:460px;overflow-y:auto"></div>
-    <div id="licStats" style="padding:10px 14px;font-size:12px;color:var(--gris-tex);border-top:1px solid rgba(30,136,229,0.1)"></div>
   </div>
 </div>
-</div>
+
+<script>
+(function(){
+  function normText(v){
+    return String(v == null ? '' : v).trim().toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      .replace(/\s+/g,' ');
+  }
+  function cleanKey(v){
+    return String(v == null ? '' : v).trim();
+  }
+  function cleanRut(v){
+    return String(v == null ? '' : v).toUpperCase().replace(/\./g,'').replace(/-/g,'').replace(/\s+/g,'');
+  }
+  function isRutHeader(h){
+    var x = normText(h).replace(/[^a-z0-9]/g,'');
+    return ['rut','run','rutfuncionario','rutprofesional','rutpaciente','identificador'].indexOf(x) !== -1;
+  }
+  function detectKey(headers){
+    headers = headers || [];
+    for (var i=0;i<headers.length;i++) if (isRutHeader(headers[i])) return headers[i];
+    var preferred = ['rut','run','id','folio','documento'];
+    for (var p=0;p<preferred.length;p++) {
+      for (var j=0;j<headers.length;j++) {
+        if (normText(headers[j]).indexOf(preferred[p]) !== -1) return headers[j];
+      }
+    }
+    return headers[0] || '';
+  }
+  function setHTML(id, html){ var el=document.getElementById(id); if(el) el.innerHTML=html; }
+  function setOptions(id, values, placeholder, selected){
+    var sel = document.getElementById(id); if (!sel) return;
+    sel.innerHTML = '';
+    if (!values || !values.length) {
+      var o = document.createElement('option'); o.value=''; o.textContent = placeholder || 'Sin opciones'; sel.appendChild(o); return;
+    }
+    values.forEach(function(v){
+      var o = document.createElement('option'); o.value=v; o.textContent=v; if (selected && selected===v) o.selected=true; sel.appendChild(o);
+    });
+  }
+  function getHeaders(rows){
+    var out = [];
+    (rows || []).forEach(function(r){
+      Object.keys(r || {}).forEach(function(k){ if (out.indexOf(k) === -1) out.push(k); });
+    });
+    return out;
+  }
+  function readWorkbook(file){
+    return new Promise(function(resolve,reject){
+      try {
+        var fr = new FileReader();
+        fr.onload = function(e){
+          try { resolve(XLSX.read(e.target.result, {type:'array', cellDates:true})); }
+          catch(err){ reject(err); }
+        };
+        fr.onerror = function(){ reject(new Error('No se pudo leer el archivo.')); };
+        fr.readAsArrayBuffer(file);
+      } catch(err){ reject(err); }
+    });
+  }
+  function detectHeaderRowAOA(aoa){
+    var bestIdx = 0, bestScore = -1;
+    var limit = Math.min((aoa || []).length, 20);
+    for (var i = 0; i < limit; i++) {
+      var row = aoa[i] || [];
+      var filled = 0;
+      for (var j = 0; j < row.length; j++) {
+        if (String(row[j] == null ? '' : row[j]).trim() !== '') filled++;
+      }
+      if (filled > bestScore) { bestScore = filled; bestIdx = i; }
+    }
+    return bestIdx;
+  }
+  function dedupeHeaders(headers){
+    var used = {};
+    return (headers || []).map(function(h, idx){
+      var name = String(h == null ? '' : h).trim();
+      if (!name) name = 'COL_' + XLSX.utils.encode_col(idx);
+      if (used[name] != null) {
+        used[name] += 1;
+        name = name + '_' + used[name];
+      } else {
+        used[name] = 0;
+      }
+      return name;
+    });
+  }
+  function workbookSheets(wb){
+    var sheets = {};
+    (wb.SheetNames || []).forEach(function(name){
+      var ws = wb.Sheets[name];
+      var aoa = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:false, blankrows:false});
+      var headerRowIndex = detectHeaderRowAOA(aoa);
+      var headers = dedupeHeaders(aoa[headerRowIndex] || []);
+      var rows = [];
+      for (var r = headerRowIndex + 1; r < aoa.length; r++) {
+        var src = aoa[r] || [];
+        var obj = { __rowNum__: r + 1 };
+        var hasData = false;
+        for (var c = 0; c < headers.length; c++) {
+          var val = src[c] == null ? '' : src[c];
+          obj[headers[c]] = val;
+          if (String(val).trim() !== '') hasData = true;
+        }
+        if (hasData) rows.push(obj);
+      }
+      sheets[name] = { rows: rows, headers: headers, headerRowIndex: headerRowIndex, aoa: aoa, ws: ws };
+    });
+    return sheets;
+  }
+  function ensureUI(){
+    var summary = document.getElementById('excelCruceResumen');
+    if (!summary || document.getElementById('excelCruceColumnsWrap')) return;
+    var block = document.createElement('div');
+    block.className = 'card';
+    block.style.marginTop = '14px';
+    block.innerHTML = ''+
+      '<div class="card-header">Opciones avanzadas</div>'+
+      '<div class="form-row">'+
+        '<div class="form-group">'+
+          '<label>Columnas a traer desde archivo cruce</label>'+
+          '<div id="excelCruceColumnsWrap" style="min-height:120px;max-height:220px;overflow:auto;border:1px solid #e2e8f0;border-radius:10px;padding:12px;background:#fff"></div>'+
+          '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">'+
+            '<button type="button" class="btn btn-sm btn-secondary" onclick="excelSeleccionarTodasColumnas(true)">Seleccionar todas</button>'+
+            '<button type="button" class="btn btn-sm btn-secondary" onclick="excelSeleccionarTodasColumnas(false)">Quitar todas</button>'+
+          '</div>'+
+        '</div>'+
+        '<div class="form-group">'+
+          '<label>Opciones del cruce</label>'+
+          '<div style="display:grid;gap:10px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px">'+
+            '<label style="display:flex;align-items:center;gap:10px;text-transform:none;letter-spacing:0;font-size:13px;color:#0f172a;font-weight:600"><input type="checkbox" id="excelDetectRut" checked> Detectar automáticamente RUT/RUN aunque los encabezados sean distintos</label>'+
+            '<label style="display:flex;align-items:center;gap:10px;text-transform:none;letter-spacing:0;font-size:13px;color:#0f172a;font-weight:600"><input type="checkbox" id="excelMarcarNoEncontrados" checked> Marcar no encontrados con estado visible en el archivo final</label>'+
+            '<label style="display:flex;align-items:center;gap:10px;text-transform:none;letter-spacing:0;font-size:13px;color:#0f172a;font-weight:600"><input type="checkbox" id="excelAgregarEstado" checked> Agregar columna Estado Cruce</label>'+
+          '</div>'+
+        '</div>'+
+      '</div>';
+    summary.parentNode.parentNode.insertBefore(block, summary.parentNode);
+  }
+  function renderColumnChooser(){
+    ensureUI();
+    var wrap = document.getElementById('excelCruceColumnsWrap');
+    if (!wrap) return;
+    var headers = (((window.excelToolState||{}).cruce||{}).headers) || [];
+    if (!headers.length) {
+      wrap.innerHTML = '<div style="color:#64748b;font-size:13px">Carga el archivo a cruzar para elegir columnas.</div>';
+      return;
+    }
+    var selected = (((window.excelToolState||{}).selectedCruceColumns)||[]);
+    if (!selected.length) selected = headers.slice();
+    window.excelToolState.selectedCruceColumns = selected.slice();
+    wrap.innerHTML = headers.map(function(h){
+      var checked = selected.indexOf(h) !== -1 ? 'checked' : '';
+      return '<label style="display:flex;align-items:center;gap:10px;padding:7px 4px;border-bottom:1px solid #f1f5f9;text-transform:none;letter-spacing:0;font-size:13px;color:#0f172a;font-weight:600">'+
+        '<input type="checkbox" class="excel-col-check" value="'+String(h).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'" '+checked+' onchange="excelToggleColumna(this)"> '+String(h).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+
+      '</label>';
+    }).join('');
+  }
+  function updateSummary(extra){
+    ensureUI();
+    var st = window.excelToolState || {};
+    var base = st.base || {}, cruce = st.cruce || {};
+    var html = '<div><strong>Base:</strong> ' + (base.file ? base.file.name : 'sin archivo') + (base.rows ? ' · ' + base.rows.length + ' filas' : '') + '</div>' +
+               '<div><strong>Cruce:</strong> ' + (cruce.file ? cruce.file.name : 'sin archivo') + (cruce.rows ? ' · ' + cruce.rows.length + ' filas' : '') + '</div>';
+    if (extra) html += '<div style="margin-top:8px">' + extra + '</div>';
+    setHTML('excelCruceResumen', html);
+  }
+  function showPreview(rows){
+    var wrap = document.getElementById('excelPreviewWrap'); if (!wrap) return;
+    if (!rows || !rows.length) {
+      wrap.innerHTML = '<div style="padding:18px;color:#64748b;font-size:13px">Aún no hay resultado para mostrar.</div>';
+      return;
+    }
+    var headers = Object.keys(rows[0] || {});
+    var sample = rows.slice(0, 25);
+    var html = '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>' + headers.map(function(h){
+      return '<th style="position:sticky;top:0;background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:10px;text-align:left">'+h+'</th>';
+    }).join('') + '</tr></thead><tbody>';
+    sample.forEach(function(r){
+      var status = r['Estado Cruce'] || r['ESTADO_CRUCE'] || '';
+      var rowBg = status === 'NO ENCONTRADO' ? '#fff1f2' : '#ffffff';
+      html += '<tr style="background:'+rowBg+'">' + headers.map(function(h){
+        var v = r[h] == null ? '' : String(r[h]);
+        if ((h === 'Estado Cruce' || h === 'ESTADO_CRUCE') && v) {
+          var bg = v === 'ENCONTRADO' ? '#dcfce7' : '#fee2e2';
+          var fg = v === 'ENCONTRADO' ? '#166534' : '#991b1b';
+          return '<td style="padding:8px;border-bottom:1px solid #f1f5f9"><span style="background:'+bg+';color:'+fg+';padding:3px 8px;border-radius:999px;font-weight:700;font-size:11px">'+v+'</span></td>';
+        }
+        return '<td style="padding:8px;border-bottom:1px solid #f1f5f9">'+v.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</td>';
+      }).join('') + '</tr>';
+    });
+    html += '</tbody></table>';
+    if (rows.length > sample.length) html += '<div style="padding:10px 12px;color:#64748b;font-size:11px">Mostrando las primeras '+sample.length+' filas de '+rows.length+'.</div>';
+    wrap.innerHTML = html;
+  }
+
+  window.excelToggleColumna = function(cb){
+    window.excelToolState = window.excelToolState || {};
+    var sel = window.excelToolState.selectedCruceColumns || [];
+    if (cb.checked) {
+      if (sel.indexOf(cb.value) === -1) sel.push(cb.value);
+    } else {
+      sel = sel.filter(function(x){ return x !== cb.value; });
+    }
+    window.excelToolState.selectedCruceColumns = sel;
+  };
+  window.excelSeleccionarTodasColumnas = function(mark){
+    var checks = document.querySelectorAll('.excel-col-check');
+    var vals = [];
+    checks.forEach(function(ch){ ch.checked = !!mark; if (mark) vals.push(ch.value); });
+    window.excelToolState.selectedCruceColumns = vals;
+  };
+
+  window.excelCargarArchivo = async function(tipo, file){
+    try {
+      ensureUI();
+      if (!file) return;
+      if (typeof XLSX === 'undefined') throw new Error('La librería Excel no está disponible.');
+      window.excelToolState = window.excelToolState || {
+        base:{file:null, workbook:null, sheets:{}, rows:[], headers:[]},
+        cruce:{file:null, workbook:null, sheets:{}, rows:[], headers:[]},
+        resultRows:[], resultHeaders:[], selectedCruceColumns:[]
+      };
+      var st = window.excelToolState[tipo];
+      setHTML(tipo === 'base' ? 'excelBaseInfo' : 'excelCruceInfo', 'Cargando archivo...');
+      var wb = await readWorkbook(file);
+      st.file = file;
+      st.workbook = wb;
+      st.sheets = workbookSheets(wb);
+      var names = wb.SheetNames || [];
+      var firstSheet = names[0] || '';
+      st.rows = firstSheet ? (st.sheets[firstSheet] || []) : [];
+      st.headers = getHeaders(st.rows);
+      var detected = detectKey(st.headers);
+      setOptions(tipo === 'base' ? 'excelBaseSheet' : 'excelCruceSheet', names, 'Sin hojas', firstSheet);
+      setOptions(tipo === 'base' ? 'excelBaseKey' : 'excelCruceKey', st.headers, 'Sin columnas', detected);
+      setHTML(tipo === 'base' ? 'excelBaseInfo' : 'excelCruceInfo', '✅ <strong>'+file.name+'</strong> cargado · '+names.length+' hoja(s) · '+st.rows.length+' fila(s).');
+      if (tipo === 'cruce') {
+        window.excelToolState.selectedCruceColumns = st.headers.slice();
+        renderColumnChooser();
+      }
+      updateSummary('Columnas sugeridas automáticamente listas para cruzar.');
+      showPreview([]);
+    } catch(err){
+      console.error('excelCargarArchivo', err);
+      setHTML(tipo === 'base' ? 'excelBaseInfo' : 'excelCruceInfo', '<span style="color:#dc2626">❌ '+(err && err.message ? err.message : err)+'</span>');
+    }
+  };
+
+  window.excelActualizarColumnas = function(tipo){
+    try {
+      window.excelToolState = window.excelToolState || {};
+      var st = window.excelToolState[tipo];
+      if (!st) return;
+      var sheetId = tipo === 'base' ? 'excelBaseSheet' : 'excelCruceSheet';
+      var keyId = tipo === 'base' ? 'excelBaseKey' : 'excelCruceKey';
+      var sheet = (document.getElementById(sheetId) || {}).value || '';
+      st.rows = sheet ? (st.sheets[sheet] || []) : [];
+      st.headers = getHeaders(st.rows);
+      setOptions(keyId, st.headers, 'Sin columnas', detectKey(st.headers));
+      if (tipo === 'cruce') {
+        window.excelToolState.selectedCruceColumns = st.headers.slice();
+        renderColumnChooser();
+      }
+      updateSummary('Se actualizaron hojas y columnas disponibles.');
+    } catch(err){ console.error('excelActualizarColumnas', err); }
+  };
+
+  window.excelCruzarArchivos = function(){
+    try {
+      window.excelToolState = window.excelToolState || {};
+      var base = window.excelToolState.base || {};
+      var cruce = window.excelToolState.cruce || {};
+      if (!base.file || !cruce.file) throw new Error('Debe cargar ambos archivos antes de cruzar.');
+      var baseKey = (document.getElementById('excelBaseKey') || {}).value || '';
+      var cruceKey = (document.getElementById('excelCruceKey') || {}).value || '';
+      var joinType = (document.getElementById('excelMergeMode') || {}).value || 'left';
+      var autoRut = !!((document.getElementById('excelDetectRut') || {}).checked);
+      var addStatus = !!((document.getElementById('excelAgregarEstado') || {}).checked);
+      var selectedCols = (window.excelToolState.selectedCruceColumns || []).slice();
+      if (!selectedCols.length) selectedCols = (cruce.headers || []).slice();
+      selectedCols = selectedCols.filter(function(h){ return h !== cruceKey; });
+      if (!baseKey || !cruceKey) throw new Error('Debe seleccionar las columnas llave en ambos archivos.');
+
+      var map = new Map();
+      (cruce.rows || []).forEach(function(r){
+        var raw = r ? r[cruceKey] : '';
+        var key = autoRut && (isRutHeader(baseKey) || isRutHeader(cruceKey)) ? cleanRut(raw) : normText(raw);
+        if (!key) return;
+        if (!map.has(key)) map.set(key, r);
+      });
+
+      var results = [];
+      var found = 0, notFound = 0;
+      (base.rows || []).forEach(function(r){
+        var raw = r ? r[baseKey] : '';
+        var key = autoRut && (isRutHeader(baseKey) || isRutHeader(cruceKey)) ? cleanRut(raw) : normText(raw);
+        var hit = key ? map.get(key) : null;
+        if (joinType === 'inner' && !hit) return;
+        var row = Object.assign({}, r || {});
+        selectedCols.forEach(function(h){
+          row[h] = hit ? hit[h] : '';
+        });
+        if (addStatus) row['Estado Cruce'] = hit ? 'ENCONTRADO' : 'NO ENCONTRADO';
+        if (hit) found++; else notFound++;
+        results.push(row);
+      });
+
+      window.excelToolState.resultRows = results;
+      window.excelToolState.resultHeaders = getHeaders(results);
+      showPreview(results);
+      updateSummary('✅ Cruce realizado correctamente · <strong>'+results.length+'</strong> filas resultantes · <strong>'+found+'</strong> encontradas · <strong>'+notFound+'</strong> no encontradas.');
+    } catch(err){
+      console.error('excelCruzarArchivos', err);
+      updateSummary('<span style="color:#dc2626">❌ ' + (err && err.message ? err.message : err) + '</span>');
+    }
+  };
+
+  window.excelDescargarResultado = function(){
+    try {
+      var state = window.excelToolState || {};
+      var rows = state.resultRows || [];
+      if (!rows.length) throw new Error('Primero debe ejecutar el cruce.');
+      var base = state.base || {};
+      if (!base.workbook) throw new Error('No se encontró el archivo base cargado.');
+      var baseSheetName = (document.getElementById('excelBaseSheet') || {}).value || (base.workbook.SheetNames || [])[0];
+      var baseMeta = ((base.sheets || {})[baseSheetName]) || {};
+      var sourceWs = base.workbook.Sheets[baseSheetName];
+      if (!sourceWs) throw new Error('No se encontró la hoja base para exportar.');
+
+      var wb = XLSX.read(XLSX.write(base.workbook, {type:'array', bookType:'xlsx', cellStyles:true}), {type:'array', cellStyles:true});
+      var ws = wb.Sheets[baseSheetName];
+      var range = XLSX.utils.decode_range(ws['!ref'] || 'A1:A1');
+      var headerRow = baseMeta.headerRowIndex || 0;
+      var existingHeaders = baseMeta.headers || [];
+      var extraHeaders = (state.selectedCruceColumns || []).slice();
+      var cruceKey = (document.getElementById('excelCruceKey') || {}).value || '';
+      extraHeaders = extraHeaders.filter(function(h){ return h && h !== cruceKey; });
+      if ((document.getElementById('excelAgregarEstado') || {}).checked) extraHeaders.push('Estado Cruce');
+
+      function cloneStyle(addrFrom, addrTo){
+        if (ws[addrFrom] && ws[addrFrom].s) {
+          ws[addrTo] = ws[addrTo] || {t:'s', v:''};
+          ws[addrTo].s = JSON.parse(JSON.stringify(ws[addrFrom].s));
+        }
+      }
+      function setCell(r, c, v){
+        var addr = XLSX.utils.encode_cell({r:r, c:c});
+        var cell = { v: v == null ? '' : v };
+        if (typeof v === 'number' && isFinite(v)) cell.t = 'n'; else cell.t = 's';
+        ws[addr] = Object.assign(ws[addr] || {}, cell);
+        return addr;
+      }
+
+      var startCol = range.e.c + 1;
+      for (var i = 0; i < extraHeaders.length; i++) {
+        var headerAddr = setCell(headerRow, startCol + i, extraHeaders[i]);
+        cloneStyle(XLSX.utils.encode_cell({r:headerRow, c:Math.max(range.e.c, 0)}), headerAddr);
+      }
+
+      rows.forEach(function(row){
+        var excelRow = Math.max(1, (row.__rowNum__ || (headerRow + 2))) - 1;
+        var status = row['Estado Cruce'] || '';
+        for (var i = 0; i < extraHeaders.length; i++) {
+          var h = extraHeaders[i];
+          var addr = setCell(excelRow, startCol + i, row[h] == null ? '' : row[h]);
+          cloneStyle(XLSX.utils.encode_cell({r:excelRow, c:Math.max(range.e.c, 0)}), addr);
+          if (status === 'NO ENCONTRADO') {
+            ws[addr].s = ws[addr].s || {};
+            ws[addr].s.fill = { patternType:'solid', fgColor:{rgb:'FEE2E2'} };
+          }
+        }
+      });
+
+      range.e.c = startCol + extraHeaders.length - 1;
+      var maxRow = range.e.r;
+      rows.forEach(function(row){ maxRow = Math.max(maxRow, Math.max(1, (row.__rowNum__ || 1)) - 1); });
+      range.e.r = maxRow;
+      ws['!ref'] = XLSX.utils.encode_range(range);
+
+      var out = ((document.getElementById('excelOutputName') || {}).value || 'cruce_pacto').trim();
+      if (!/\.xlsx$/i.test(out)) out += '.xlsx';
+      XLSX.writeFile(wb, out, {cellStyles:true});
+    } catch(err){
+      console.error('excelDescargarResultado', err);
+      alert(err && err.message ? err.message : 'No se pudo descargar el archivo.');
+    }
+  };
+
+  window.excelLimpiar = function(){
+    window.excelToolState = {
+      base:{file:null, workbook:null, sheets:{}, rows:[], headers:[]},
+      cruce:{file:null, workbook:null, sheets:{}, rows:[], headers:[]},
+      resultRows:[], resultHeaders:[], selectedCruceColumns:[]
+    };
+    ['excelBaseFile','excelCruceFile'].forEach(function(id){ var el=document.getElementById(id); if (el) el.value=''; });
+    setOptions('excelBaseSheet', [], 'Sin hojas');
+    setOptions('excelCruceSheet', [], 'Sin hojas');
+    setOptions('excelBaseKey', [], 'Sin columnas');
+    setOptions('excelCruceKey', [], 'Sin columnas');
+    setHTML('excelBaseInfo', 'Aún no se ha cargado ningún archivo.');
+    setHTML('excelCruceInfo', 'Aún no se ha cargado ningún archivo.');
+    updateSummary('Todavía no se ha realizado ningún cruce.');
+    renderColumnChooser();
+    showPreview([]);
+  };
+
+  document.addEventListener('DOMContentLoaded', function(){
+    ensureUI();
+    renderColumnChooser();
+    showPreview([]);
+  });
+})();
+</script>
 </body>
 </html>
