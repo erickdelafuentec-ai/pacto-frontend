@@ -1,4 +1,10 @@
-<!DOCTYPE html>
+var preguntasSM = [
+  '¿Ha pensado en hacerse daño?',
+  '¿Consume alcohol o algún tipo de droga ocasionando problemas en sus relaciones?',
+  '¿Se ha visto afectado su ánimo (falta o exceso) durante los últimos 6 meses?',
+  '¿Siente que sus relaciones (familiares, laborales, con pares) se han visto afectadas por su estado de ánimo?',
+  '¿Considera que necesita ayuda para sobrellevar problemas de salud visual?'
+];<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -1560,7 +1566,19 @@
       <div class="card">
         <div class="card-header">💰 Beneficios y Apoyos Sociales</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:16px">
-          <label class="check-item"><input type="checkbox" id="tsRSH"><span>RSH</span></label>
+          <div>
+            <label class="check-item" style="margin-bottom:6px">
+              <input type="checkbox" id="tsRSH" onchange="toggleRSHPct(this)">
+              <span>RSH</span>
+            </label>
+            <div id="tsRSHPctWrap" style="display:none;margin-left:32px;margin-bottom:8px">
+              <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;display:block">Porcentaje RSH</label>
+              <div style="display:flex;align-items:center;gap:8px">
+                <input type="number" id="tsRSHPct" min="0" max="100" placeholder="Ej: 40" style="width:90px;font-size:13px">
+                <span style="font-size:14px;color:var(--white);font-weight:700">%</span>
+              </div>
+            </div>
+          </div>
           <label class="check-item"><input type="checkbox" id="tsRND"><span>RND</span></label>
           <label class="check-item"><input type="checkbox" id="tsPension"><span>Pensión</span></label>
           <label class="check-item"><input type="checkbox" id="tsSubsidios"><span>Subsidios</span></label>
@@ -1749,6 +1767,13 @@
       </div>
       <div class="form-section">
         <div class="form-section-title">👤 Datos del Funcionario</div>
+        <!-- Selector rápido solo para edelafuente/admin -->
+        <div id="permSelectorFuncionario" style="display:none;margin-bottom:14px;padding:12px;background:rgba(168,85,247,0.08);border:1px solid rgba(168,85,247,0.2);border-radius:10px">
+          <label style="font-size:11px;font-weight:700;color:var(--acc2);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;display:block">⚡ Cargar datos de un funcionario PACTO</label>
+          <select id="permSelectFuncionario" onchange="permCargarFuncionario()" style="width:100%;font-size:13px">
+            <option value="">— Seleccione un funcionario del equipo —</option>
+          </select>
+        </div>
         <div class="form-row"><div class="form-group"><label>Apellidos y Nombres</label><input type="text" id="perm_nombre" placeholder="APELLIDOS NOMBRE"></div><div class="form-group"><label>RUN</label><input type="text" id="perm_run" placeholder="12.345.678-9"></div></div>
         <div class="form-row"><div class="form-group"><label>Cargo</label><input type="text" id="perm_cargo" placeholder="Cargo oficial"></div><div class="form-group"><label>Calidad Jurídica</label><select id="perm_calidad"><option>CONTRATA</option><option>PLANTA</option><option>HONORARIOS</option></select></div></div>
         <div class="form-row"><div class="form-group"><label>Grado</label><input type="text" id="perm_grado" placeholder="Grado EUS"></div><div class="form-group"><label>Horas</label><input type="text" id="perm_horas" placeholder="Ej: 44"></div></div>
@@ -2248,6 +2273,36 @@ function separador() {
 }
 
 
+
+// ── Permisos — selector funcionario para edelafuente ─────────
+function initPermSelectorFuncionario() {
+  if (currentUser !== 'edelafuente' && currentUser !== 'admin') return;
+  var wrap = document.getElementById('permSelectorFuncionario');
+  if (wrap) wrap.style.display = 'block';
+  var sel = document.getElementById('permSelectFuncionario');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Seleccione un funcionario —</option>';
+  PERSONAL_PACTO.forEach(function(p) {
+    var opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.nombre + ' — ' + p.cargo;
+    sel.appendChild(opt);
+  });
+}
+
+function permCargarFuncionario() {
+  var sel = document.getElementById('permSelectFuncionario');
+  if (!sel || !sel.value) return;
+  var prof = PERSONAL_PACTO.find(function(p){ return p.id === sel.value; });
+  if (!prof) return;
+  var nomEl = document.getElementById('perm_nombre');
+  var runEl = document.getElementById('perm_run');
+  var carEl = document.getElementById('perm_cargo');
+  if (nomEl) nomEl.value = prof.nombre;
+  if (runEl) runEl.value = prof.rut || '';
+  if (carEl) carEl.value = prof.cargo || '';
+}
+
 // ── Personal PACTO directory ──────────────────────────────────
 function togglePersonalLista() {
   var div = document.getElementById('personalListaContent');
@@ -2673,12 +2728,16 @@ const AGENDA_DIAS = {
   },
   Viernes: {
     profesionales: [
-      {id:'gmackay',    prof:'GONZALO MAC-KAY VALENZUELA',    cargo:'Psicólogo'},
-      {id:'craud',      prof:'CHRISTOPHER RAULD MARTÍNEZ',    cargo:'Psicólogo'},
-      {id:'rcorrea',    prof:'ROBERTO CORREA DÍAZ',           cargo:'Oftalmólogo'},
-      {id:'phidalgo',   prof:'PETER HIDALGO PINO',            cargo:'Somatoprotesista'},
+      {id:'craud',   prof:'CHRISTOPHER RAULD MARTÍNEZ', cargo:'Psicólogo'},
+      {id:'gmackay', prof:'GONZALO MAC-KAY VALENZUELA',  cargo:'Psicólogo'},
     ],
-    horarios: ['08:30','09:30','10:30','11:30']
+    horarios: ['12:00','13:00','14:00','15:00'],
+    horariosProf: {
+      '12:00': 'craud',
+      '13:00': 'craud',
+      '14:00': 'gmackay',
+      '15:00': 'gmackay'
+    }
   }
 };
 
@@ -2851,7 +2910,8 @@ function renderHorarios() {
   wrap.classList.remove('hidden');
   var diaInfo  = AGENDA_DIAS[diaSeleccionado];
   var horarios = diaInfo ? diaInfo.horarios : [];
-  // Check ocupados by EXACT date (dia + fecha)
+  var horariosProf = diaInfo ? (diaInfo.horariosProf || null) : null;
+  // Check ocupados by EXACT date
   var ocupados = agendaData.filter(function(a){
     return a.dia === diaSeleccionado && (fechaSeleccionada ? a.fecha === fechaSeleccionada : true);
   }).map(function(a){ return a.hora; });
@@ -2864,7 +2924,17 @@ function renderHorarios() {
     var occ = ocupados.indexOf(h) !== -1;
     var sel = horaSeleccionada === h ? ' selected' : '';
     var cls = 'slot-hora' + (occ ? ' ocupada' : sel);
-    html += '<div class="' + cls + '" data-hora="' + h + '">' + h + ' hrs' + (occ ? ' (ocupado)' : '') + '</div>';
+    // Show assigned prof per slot if horariosProf defined (Viernes)
+    var profLabel = '';
+    if (horariosProf && horariosProf[h]) {
+      var profId = horariosProf[h];
+      var profObj = PERSONAL_PACTO.find(function(p){ return p.id === profId; });
+      if (profObj) {
+        var shortName = profObj.nombre.split(' ').slice(0,2).join(' ');
+        profLabel = '<div style="font-size:10px;font-weight:500;color:var(--muted);margin-top:3px">' + shortName + '</div>';
+      }
+    }
+    html += '<div class="' + cls + '" data-hora="' + h + '">' + h + ' hrs' + profLabel + (occ ? '<div style="font-size:10px;color:var(--pink)">Ocupado</div>' : '') + '</div>';
   });
   grid.innerHTML = html;
   grid.querySelectorAll('.slot-hora:not(.ocupada)').forEach(function(btn) {
@@ -2873,6 +2943,19 @@ function renderHorarios() {
 }
 
 function selHora(hora, btn) {
+  // Auto-assign prof for slots with fixed assignment (e.g. Viernes)
+  var diaInfo = AGENDA_DIAS[diaSeleccionado];
+  if (diaInfo && diaInfo.horariosProf && diaInfo.horariosProf[hora]) {
+    var fixedProfId = diaInfo.horariosProf[hora];
+    var fixedProf   = diaInfo.profesionales.find(function(p){ return p.id === fixedProfId; });
+    if (fixedProf) {
+      profsSeleccionados = [fixedProf];
+      // Update prof checkboxes UI
+      document.querySelectorAll('.prof-checkbox').forEach(function(cb){
+        cb.checked = cb.dataset.id === fixedProfId;
+      });
+    }
+  }
   horaSeleccionada = hora;
   document.querySelectorAll('.slot-hora').forEach(b => b.classList.remove('selected'));
   btn.classList.add('selected');
@@ -3070,6 +3153,15 @@ function tsTab(btn, secId) {
   if (sec) { sec.classList.remove('hidden'); sec.classList.add('active'); }
   if (secId === 'tsHistorial') renderTSHistorial();
   if (secId === 'tsSM')        renderSMPreguntas();
+}
+
+function toggleRSHPct(cb) {
+  var wrap = document.getElementById('tsRSHPctWrap');
+  if (wrap) wrap.style.display = cb.checked ? 'block' : 'none';
+  if (!cb.checked) {
+    var pct = document.getElementById('tsRSHPct');
+    if (pct) pct.value = '';
+  }
 }
 
 function nuevoRegistroTS() {
