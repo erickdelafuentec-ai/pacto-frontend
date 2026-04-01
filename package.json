@@ -1,0 +1,13 @@
+{
+  "name": "sistema-pacto-railway",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sistema PACTO listo para Railway con almacenamiento compartido",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
