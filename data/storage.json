@@ -3,8 +3,8 @@
   "tsData": [],
   "waitlistData": [],
   "licenciasData": [],
-  "devolucionData": {
-    "historial": []
-  },
-  "permisosHistorial": []
+  "permisosHistorial": [],
+  "usuariosSistema": [],
+  "actas_historial": [],
+  "devolucionHistorial": []
 }
