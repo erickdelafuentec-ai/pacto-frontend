@@ -1,56 +1,69 @@
 const express = require('express');
-const fs = require('fs');
 const path = require('path');
+const { Pool } = require('pg');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DATA_DIR = path.join(__dirname, 'data');
-const STORE_FILE = path.join(DATA_DIR, 'storage.json');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
-const DEFAULT_STORE = {
-  agendaData: [],
-  tsData: [],
-  waitlistData: [],
-  licenciasData: [],
-  permisosHistorial: [],
-  usuariosSistema: [],
-  actas_historial: [],
-  devolucionHistorial: []
-};
+// ── Conexión a PostgreSQL (Railway inyecta DATABASE_URL automáticamente) ──────
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL && process.env.DATABASE_URL.includes('railway')
+    ? { rejectUnauthorized: false }
+    : false,
+});
 
-function ensureStore() {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-  if (!fs.existsSync(STORE_FILE)) {
-    fs.writeFileSync(STORE_FILE, JSON.stringify(DEFAULT_STORE, null, 2), 'utf8');
-    return;
+// ── Claves permitidas ──────────────────────────────────────────────────────────
+const ALLOWED_KEYS = [
+  'agendaData',
+  'tsData',
+  'waitlistData',
+  'licenciasData',
+  'permisosHistorial',
+  'usuariosSistema',
+  'actas_historial',
+  'devolucionHistorial',
+  'lentesData',
+];
+
+// ── Crear tabla si no existe ───────────────────────────────────────────────────
+async function initDB() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS storage (
+      key   TEXT PRIMARY KEY,
+      value JSONB NOT NULL DEFAULT '[]'
+    )
+  `);
+
+  // Insertar claves faltantes con valor vacío
+  for (const key of ALLOWED_KEYS) {
+    await pool.query(
+      `INSERT INTO storage (key, value) VALUES ($1, '[]') ON CONFLICT (key) DO NOTHING`,
+      [key]
+    );
   }
-  try {
-    const current = JSON.parse(fs.readFileSync(STORE_FILE, 'utf8'));
-    const merged = { ...DEFAULT_STORE, ...(current || {}) };
-    fs.writeFileSync(STORE_FILE, JSON.stringify(merged, null, 2), 'utf8');
-  } catch (error) {
-    fs.writeFileSync(STORE_FILE, JSON.stringify(DEFAULT_STORE, null, 2), 'utf8');
-  }
+
+  console.log('✅ Base de datos lista');
 }
 
-function readStore() {
-  ensureStore();
-  try {
-    const data = JSON.parse(fs.readFileSync(STORE_FILE, 'utf8'));
-    return { ...DEFAULT_STORE, ...(data || {}) };
-  } catch (error) {
-    return { ...DEFAULT_STORE };
-  }
+// ── Helpers ────────────────────────────────────────────────────────────────────
+async function readStore() {
+  const { rows } = await pool.query('SELECT key, value FROM storage');
+  const store = {};
+  for (const row of rows) store[row.key] = row.value;
+  return store;
 }
 
-function writeStore(store) {
-  fs.writeFileSync(STORE_FILE, JSON.stringify(store, null, 2), 'utf8');
+async function writeKey(key, value) {
+  await pool.query(
+    `INSERT INTO storage (key, value) VALUES ($1, $2)
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+    [key, JSON.stringify(value)]
+  );
 }
 
-ensureStore();
-
-// Headers necesarios para que Chrome permita micrófono y SpeechRecognition
+// ── Middleware ─────────────────────────────────────────────────────────────────
 app.use((req, res, next) => {
   res.setHeader('Permissions-Policy', 'microphone=*, camera=()');
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
@@ -61,45 +74,68 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(PUBLIC_DIR, { extensions: ['html'] }));
 
-app.get('/health', (_req, res) => {
-  res.json({ ok: true, time: new Date().toISOString() });
+// ── Endpoints ──────────────────────────────────────────────────────────────────
+app.get('/health', async (_req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ ok: true, db: 'postgres', time: new Date().toISOString() });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
 });
 
-app.get('/api/storage', (_req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
-  res.json(readStore());
+// GET /api/storage → devuelve todo el store
+app.get('/api/storage', async (_req, res) => {
+  try {
+    res.setHeader('Cache-Control', 'no-store');
+    const store = await readStore();
+    res.json(store);
+  } catch (e) {
+    console.error('GET /api/storage error:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
 });
 
-app.post('/api/storage/:key', (req, res) => {
-  const key = req.params.key;
-  if (!Object.prototype.hasOwnProperty.call(DEFAULT_STORE, key)) {
+// POST /api/storage/:key → actualiza una clave específica
+app.post('/api/storage/:key', async (req, res) => {
+  const { key } = req.params;
+  if (!ALLOWED_KEYS.includes(key)) {
     return res.status(400).json({ ok: false, error: 'Clave no permitida' });
   }
-
-  const store = readStore();
-  store[key] = typeof req.body.value === 'undefined' ? [] : req.body.value;
-  writeStore(store);
-  res.json({ ok: true, key, items: Array.isArray(store[key]) ? store[key].length : null });
+  try {
+    const value = typeof req.body.value === 'undefined' ? [] : req.body.value;
+    await writeKey(key, value);
+    res.json({ ok: true, key, items: Array.isArray(value) ? value.length : null });
+  } catch (e) {
+    console.error(`POST /api/storage/${key} error:`, e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
 });
 
-app.post('/api/storage', (req, res) => {
+// POST /api/storage → actualiza múltiples claves a la vez
+app.post('/api/storage', async (req, res) => {
   const incoming = req.body || {};
-  const store = readStore();
-
-  Object.keys(DEFAULT_STORE).forEach((key) => {
-    if (Object.prototype.hasOwnProperty.call(incoming, key)) {
-      store[key] = incoming[key];
-    }
-  });
-
-  writeStore(store);
-  res.json({ ok: true });
+  try {
+    const updates = Object.keys(incoming).filter(k => ALLOWED_KEYS.includes(k));
+    await Promise.all(updates.map(k => writeKey(k, incoming[k])));
+    res.json({ ok: true, updated: updates });
+  } catch (e) {
+    console.error('POST /api/storage error:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
 });
 
+// Fallback → index.html
 app.get('*', (_req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`Sistema PACTO listo en puerto ${PORT}`);
-});
+// ── Arrancar ───────────────────────────────────────────────────────────────────
+initDB()
+  .then(() => {
+    app.listen(PORT, () => console.log(`Sistema PACTO listo en puerto ${PORT}`));
+  })
+  .catch(err => {
+    console.error('❌ Error iniciando DB:', err.message);
+    process.exit(1);
+  });
