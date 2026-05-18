@@ -12290,8 +12290,59 @@ window.addEventListener('appinstalled', function() {
   // ════════════════════════════════════════════════════
   // AGENDA (citas)
   // ════════════════════════════════════════════════════
+  // ── Adaptador: convierte una cita del formato VIEJO (agendaData) al formato nuevo ──
+  function saaAgendaAdaptarVieja(v) {
+    if (!v) return null;
+    // Estado vieja: "Agendado"/"Realizada"/"NSP" (texto) o nsp:true
+    var estado = 'AGENDADA';
+    var estadoTxt = (v.estado || '').toString().toUpperCase();
+    if (v.nsp === true || estadoTxt === 'NSP' || estadoTxt === 'NO SE PRESENTÓ' || estadoTxt === 'NO SE PRESENTO') {
+      estado = 'NSP';
+    } else if (estadoTxt.indexOf('REALIZ') === 0) {
+      estado = 'REALIZADA';
+    } else if (estadoTxt === 'CANCELADO' || estadoTxt === 'CANCELADA') {
+      estado = 'CANCELADA';
+    }
+    // Nombre completo del paciente
+    var nombre = [v.nombre, v.ap_pat, v.ap_mat].filter(function(x){ return x && x.trim(); }).join(' ').trim();
+    if (!nombre) nombre = v.nombre || '(sin nombre)';
+    // RUT: el sistema viejo guardaba el cuerpo y el dv por separado
+    var rut = v.rut || '';
+    if (v.dv && rut && rut.indexOf('-') === -1) rut = rut + '-' + v.dv;
+    return {
+      id: 'old_' + (v.id || Math.random().toString(36).slice(2)),
+      _origen: 'historico',     // marca para distinguir en la UI
+      _viejo: v,                // referencia al original
+      rut: rut,
+      nombre: nombre,
+      edad: v.edad || '',
+      comuna: v.comuna || '',
+      direccion: v.direccion || '',
+      telefono: v.telefono || '',
+      agrupacion: '',
+      actividad: v.actividad || v.cargo || '—',
+      profesionalId: '',
+      profesionalNombre: v.profesional || v.cargo || '—',
+      fecha: v.fecha || '',
+      hora: v.hora || '',
+      modalidad: 'Presencial',  // las viejas eran todas presenciales
+      motivo: v.diagnostico || '',
+      estado: estado,
+      creadoEn: '',
+      creadoPor: 'sistema'
+    };
+  }
+
+  // Devuelve la unión de citas viejas (agendaData) + nuevas (SAA.citas)
+  function saaAgendaCitasUnidas() {
+    var nuevas = (SAA.citas || []).slice();
+    var viejas = (typeof agendaData !== 'undefined' && Array.isArray(agendaData)) ? agendaData : [];
+    var adaptadas = viejas.map(saaAgendaAdaptarVieja).filter(function(c){ return c && c.fecha; });
+    return adaptadas.concat(nuevas);
+  }
+
   window.saaAgendaRender = function() {
-    var citas = SAA.citas.slice();
+    var citas = saaAgendaCitasUnidas();
     var q     = (document.getElementById('saaAgendaQ').value || '').toLowerCase();
     var desde = document.getElementById('saaAgendaDesde').value;
     var mod   = document.getElementById('saaAgendaMod').value;
@@ -12302,18 +12353,19 @@ window.addEventListener('appinstalled', function() {
       if (mod && c.modalidad !== mod) return false;
       return true;
     });
-    // Ordenar por fecha y hora
+    // Ordenar por fecha y hora (más recientes arriba si pasaron; las futuras al final)
     f.sort(function(a,b){
       var fa = (a.fecha||'') + ' ' + (a.hora||'');
       var fb = (b.fecha||'') + ' ' + (b.hora||'');
       return fa < fb ? -1 : (fa > fb ? 1 : 0);
     });
 
-    // Stats
+    // Stats — cuentan TODAS las citas (viejas y nuevas)
     var stEl = document.getElementById('saaAgendaStats');
     var hoy = hoyIso();
     var hoyCount = citas.filter(function(c){ return c.fecha === hoy; }).length;
     var semCount = citas.filter(function(c){
+      if (!c.fecha) return false;
       var d = new Date(c.fecha + 'T00:00:00'); var h = new Date(hoy + 'T00:00:00');
       var dias = Math.round((d - h) / 86400000);
       return dias >= 0 && dias <= 7;
@@ -12330,7 +12382,14 @@ window.addEventListener('appinstalled', function() {
     }).join('');
 
     // Tabla
-    document.getElementById('saaAgendaCount').textContent = f.length + ' cita' + (f.length === 1 ? '' : 's');
+    var nHist = f.filter(function(c){ return c._origen === 'historico'; }).length;
+    var nNuevas = f.length - nHist;
+    var countEl = document.getElementById('saaAgendaCount');
+    if (countEl) {
+      var txt = f.length + ' cita' + (f.length === 1 ? '' : 's');
+      if (nHist > 0) txt += ' (' + nHist + ' histórica' + (nHist === 1 ? '' : 's') + (nNuevas > 0 ? ' + ' + nNuevas + ' nueva' + (nNuevas === 1 ? '' : 's') : '') + ')';
+      countEl.textContent = txt;
+    }
     var tb = document.getElementById('saaAgendaTbody');
     if (f.length === 0) {
       tb.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:40px; color:var(--pa-gray-600); font-size:13px;"><div style="font-size:40px; opacity:0.3; margin-bottom:8px;">📅</div>Sin citas para los filtros aplicados</td></tr>';
@@ -12339,22 +12398,35 @@ window.addEventListener('appinstalled', function() {
     tb.innerHTML = f.map(function(c){
       var estadoCls = {'AGENDADA':'info', 'REALIZADA':'ok', 'NSP':'crit', 'CANCELADA':'warn'}[c.estado] || 'info';
       var modIcon = {'Presencial':'🩺','Telemedicina':'📡','Domiciliaria':'🏠'}[c.modalidad] || '·';
-      return '<tr>' +
+      var histBadge = c._origen === 'historico'
+        ? ' <span style="display:inline-block; background:var(--pa-gray-200); color:var(--pa-gray-700); padding:1px 6px; border-radius:999px; font-size:9px; font-weight:700; letter-spacing:0.5px; vertical-align:middle;">📂 HIST</span>'
+        : '';
+      var acciones = '';
+      if (c._origen === 'historico') {
+        // Las históricas no se modifican
+        acciones = '<span style="font-size:11px; color:var(--pa-gray-500); font-style:italic;">solo lectura</span>';
+      } else if (c.estado === 'AGENDADA') {
+        acciones = '<button class="saa-btn saa-btn-success saa-btn-sm" onclick="saaAgendaMarcar(\'' + c.id + '\',\'REALIZADA\')">✓ Realizada</button> ' +
+                   '<button class="saa-btn saa-btn-danger saa-btn-sm" onclick="saaAgendaMarcar(\'' + c.id + '\',\'NSP\')">✕ NSP</button>';
+      }
+      return '<tr' + (c._origen === 'historico' ? ' style="background:var(--pa-gray-50);"' : '') + '>' +
         '<td><strong>' + fmtFechaCorta(c.fecha) + '</strong><div style="font-size:12px; color:var(--pa-gray-600);">' + c.hora + ' hrs</div></td>' +
-        '<td><strong>' + c.nombre + '</strong><div style="font-size:12px; color:var(--pa-gray-600);">' + c.rut + '</div></td>' +
+        '<td><strong>' + c.nombre + '</strong>' + histBadge + '<div style="font-size:12px; color:var(--pa-gray-600);">' + c.rut + '</div></td>' +
         '<td>' + c.actividad + '</td>' +
         '<td>' + c.profesionalNombre + '</td>' +
         '<td>' + modIcon + ' ' + c.modalidad + '</td>' +
         '<td><span class="saa-badge ' + estadoCls + '">' + c.estado + '</span></td>' +
-        '<td style="text-align:right; white-space:nowrap;">' +
-          (c.estado === 'AGENDADA' ? '<button class="saa-btn saa-btn-success saa-btn-sm" onclick="saaAgendaMarcar(\'' + c.id + '\',\'REALIZADA\')">✓ Realizada</button> ' +
-                                     '<button class="saa-btn saa-btn-danger saa-btn-sm" onclick="saaAgendaMarcar(\'' + c.id + '\',\'NSP\')">✕ NSP</button>' : '') +
-        '</td>' +
+        '<td style="text-align:right; white-space:nowrap;">' + acciones + '</td>' +
       '</tr>';
     }).join('');
   };
 
   window.saaAgendaMarcar = function(id, estado) {
+    // Si es un id histórico, no se puede modificar (no está en SAA.citas)
+    if (typeof id === 'string' && id.indexOf('old_') === 0) {
+      alert('Esta es una cita histórica del sistema anterior — no se puede modificar desde aquí.\n\nSi necesita cambiarla, use el módulo "Agenda vieja" o gestiónela como nueva en Dación de hora.');
+      return;
+    }
     var c = SAA.citas.find(function(x){ return x.id === id; });
     if (!c) return;
     c.estado = estado;
@@ -12373,8 +12445,51 @@ window.addEventListener('appinstalled', function() {
   // ════════════════════════════════════════════════════
   // LISTA DE ESPERA
   // ════════════════════════════════════════════════════
+  // ── Adaptador: convierte un registro de waitlistData (viejo) al formato SAA.espera (nuevo) ──
+  function saaEsperaAdaptarVieja(v) {
+    if (!v) return null;
+    var nombre = [v.nombre, v.ap_pat, v.ap_mat].filter(function(x){ return x && x.trim(); }).join(' ').trim();
+    if (!nombre) nombre = v.nombre || '(sin nombre)';
+    var rut = v.rut || '';
+    if (v.dv && rut && rut.indexOf('-') === -1) rut = rut + '-' + v.dv;
+    // Estado: el viejo usa "EN ESPERA", el nuevo usa "INGRESADA"
+    var estado = 'INGRESADA';
+    var estadoTxt = (v.estado || '').toString().toUpperCase();
+    if (estadoTxt === 'AGENDADA' || estadoTxt === 'AGENDADO') estado = 'AGENDADA';
+    else if (estadoTxt === 'ATENDIDA' || estadoTxt === 'ATENDIDO') estado = 'ATENDIDA';
+    // Prioridad → ges (si vieja prioridad era "GES" o "ALTA")
+    var prio = (v.prioridad || '').toString().toUpperCase();
+    var ges = (prio === 'GES' || prio === 'ALTA') ? 'si' : 'no';
+    return {
+      id: 'old_wl_' + (v.id || Math.random().toString(36).slice(2)),
+      _origen: 'historico',
+      _viejo: v,
+      rut: rut,
+      nombre: nombre,
+      edad: v.edad || '',
+      telefono: v.telefono || '',
+      direccion: v.direccion || '',
+      comuna: v.comuna || '',
+      diagnostico: v.diagnostico || '',
+      prevision: v.prevision || '',
+      actividad: v.actividad || '',
+      ges: ges,
+      observacion: v.observacion || '',
+      fechaIngreso: v.fechaIngreso || '',
+      estado: estado,
+      prioridadVieja: v.prioridad || ''
+    };
+  }
+
+  function saaEsperaUnidas() {
+    var nuevas = (SAA.espera || []).slice();
+    var viejas = (typeof waitlistData !== 'undefined' && Array.isArray(waitlistData)) ? waitlistData : [];
+    var adaptadas = viejas.map(saaEsperaAdaptarVieja).filter(function(r){ return r; });
+    return adaptadas.concat(nuevas);
+  }
+
   window.saaEsperaRender = function() {
-    var data = SAA.espera.slice();
+    var data = saaEsperaUnidas();
     var q     = (document.getElementById('saaEsperaQ').value || '').toLowerCase();
     var act   = document.getElementById('saaEsperaAct').value;
     var est   = document.getElementById('saaEsperaEstado').value;
@@ -12392,7 +12507,7 @@ window.addEventListener('appinstalled', function() {
     f.forEach(function(r){ r._dias = diasDesde(r.fechaIngreso); });
     f.sort(function(a,b){ return orden === 'dias_asc' ? a._dias - b._dias : b._dias - a._dias; });
 
-    // Stats
+    // Stats — sobre TODA la data (viejos + nuevos)
     var stEl = document.getElementById('saaEsperaStats');
     var sin   = data.filter(function(r){ return r.estado === 'INGRESADA'; }).length;
     var crit  = data.filter(function(r){ return r.estado === 'INGRESADA' && diasDesde(r.fechaIngreso) > 730; }).length;
@@ -12409,10 +12524,20 @@ window.addEventListener('appinstalled', function() {
     }).join('');
 
     var sub = document.getElementById('saaEsperaSub');
-    if (sub) sub.textContent = 'Pacientes en espera · ' + total + ' totales';
+    if (sub) {
+      var nHist = data.filter(function(r){ return r._origen === 'historico'; }).length;
+      sub.textContent = 'Pacientes en espera · ' + total + ' totales' + (nHist > 0 ? ' (' + nHist + ' del histórico)' : '');
+    }
 
     // Tabla
-    document.getElementById('saaEsperaCount').textContent = f.length + ' paciente' + (f.length === 1 ? '' : 's');
+    var nHistF = f.filter(function(r){ return r._origen === 'historico'; }).length;
+    var nNuevasF = f.length - nHistF;
+    var countEl = document.getElementById('saaEsperaCount');
+    if (countEl) {
+      var txt = f.length + ' paciente' + (f.length === 1 ? '' : 's');
+      if (nHistF > 0) txt += ' (' + nHistF + ' histórico' + (nHistF === 1 ? '' : 's') + (nNuevasF > 0 ? ' + ' + nNuevasF + ' nuevo' + (nNuevasF === 1 ? '' : 's') : '') + ')';
+      countEl.textContent = txt;
+    }
     var tb = document.getElementById('saaEsperaTbody');
     if (f.length === 0) {
       tb.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:40px; color:var(--pa-gray-600); font-size:13px;"><div style="font-size:40px; opacity:0.3; margin-bottom:8px;">⏳</div>Sin pacientes en espera</td></tr>';
@@ -12423,35 +12548,50 @@ window.addEventListener('appinstalled', function() {
       if (r._dias < 30)   diasBadge = '<span class="saa-badge-pill" style="background:#dcfce7;color:#15803d;">' + r._dias + 'D</span>';
       else if (r._dias < 180) diasBadge = '<span class="saa-badge-pill" style="background:#fef3c7;color:#854F0B;">' + r._dias + 'D</span>';
       else if (r._dias < 730) diasBadge = '<span class="saa-badge-pill" style="background:#ffedd5;color:#c45c00;">' + r._dias + 'D</span>';
-      var estadoCls = {'INGRESADA':'warn','AGENDADA':'ok','ATENDIDA':'info'}[r.estado] || 'info';
+      var estadoCls = {'INGRESADA':'warn','AGENDADA':'ok','ATENDIDA':'info','EN ESPERA':'warn'}[r.estado] || 'info';
       var gesBadge = r.ges === 'si' ? ' <span class="saa-badge ges">GES</span>' : '';
-      return '<tr>' +
+      var histBadge = r._origen === 'historico'
+        ? ' <span style="display:inline-block; background:var(--pa-gray-200); color:var(--pa-gray-700); padding:1px 6px; border-radius:999px; font-size:9px; font-weight:700; letter-spacing:0.5px; vertical-align:middle;">📂 HIST</span>'
+        : '';
+      // Acciones: para los históricos permitimos AGENDAR (lo lleva a Dación) y ELIMINAR si es necesario
+      var acciones = '';
+      if (r.estado === 'INGRESADA' || r.estado === 'EN ESPERA') {
+        acciones = '<button class="saa-btn saa-btn-primary saa-btn-sm" onclick="saaEsperaAgendar(\'' + r.id + '\')">📅 Agendar</button> ';
+      }
+      if (r._origen !== 'historico') {
+        acciones += '<button class="saa-btn saa-btn-danger saa-btn-sm" onclick="saaEsperaEliminar(\'' + r.id + '\')" title="Eliminar">✕</button>';
+      }
+      return '<tr' + (r._origen === 'historico' ? ' style="background:var(--pa-gray-50);"' : '') + '>' +
         '<td>' + diasBadge + '</td>' +
-        '<td><strong>' + (r.nombre||'') + '</strong>' + gesBadge + '<div style="font-size:12px; color:var(--pa-gray-600);">' + (r.rut||'') + ' · ' + (r.edad ? r.edad + 'a' : '') + (r.comuna ? ' · 📍 ' + r.comuna : '') + '</div></td>' +
+        '<td><strong>' + (r.nombre||'') + '</strong>' + gesBadge + histBadge + '<div style="font-size:12px; color:var(--pa-gray-600);">' + (r.rut||'') + ' · ' + (r.edad ? r.edad + 'a' : '') + (r.comuna ? ' · 📍 ' + r.comuna : '') + '</div></td>' +
         '<td>' + (r.actividad||'') + '</td>' +
         '<td>' + (r.diagnostico || '<span style="color:var(--pa-gray-500)">—</span>') + '</td>' +
         '<td><span class="saa-badge ' + estadoCls + '">' + r.estado + '</span>' +
             (r.citaFecha ? '<div style="font-size:11px; color:var(--pa-gray-600); margin-top:3px;">📅 ' + fmtFechaCorta(r.citaFecha) + '</div>' : '') +
         '</td>' +
-        '<td style="text-align:right; white-space:nowrap;">' +
-          (r.estado === 'INGRESADA' ? '<button class="saa-btn saa-btn-primary saa-btn-sm" onclick="saaEsperaAgendar(\'' + r.id + '\')">📅 Agendar</button> ' : '') +
-          '<button class="saa-btn saa-btn-danger saa-btn-sm" onclick="saaEsperaEliminar(\'' + r.id + '\')" title="Eliminar">✕</button>' +
-        '</td>' +
+        '<td style="text-align:right; white-space:nowrap;">' + acciones + '</td>' +
       '</tr>';
     }).join('');
   };
 
   window.saaEsperaAgendar = function(id) {
-    var r = SAA.espera.find(function(x){ return x.id === id; });
+    var r = saaEsperaUnidas().find(function(x){ return x.id === id; });
     if (!r) return;
     // Ir a Dación con el paciente precargado
-    dacionPaciente = { rut: r.rut, nombre: r.nombre, edad: r.edad, comuna: r.comuna };
+    dacionPaciente = {
+      rut: r.rut, nombre: r.nombre, edad: r.edad, comuna: r.comuna,
+      direccion: r.direccion || '', telefono: r.telefono || '',
+      prevision: r.prevision || '',
+      origen: r._origen === 'historico' ? 'historico' : 'local'
+    };
     goTo('screenDacion');
     setTimeout(function(){
       saaDacionRenderPaciente();
       var c = limpiarRut(r.rut);
-      document.getElementById('saaDacRutCuerpo').value = c.slice(0,-1);
-      document.getElementById('saaDacRutDv').value     = c.slice(-1);
+      if (c.length >= 2) {
+        document.getElementById('saaDacRutCuerpo').value = c.slice(0,-1);
+        document.getElementById('saaDacRutDv').value     = c.slice(-1);
+      }
     }, 100);
   };
 
