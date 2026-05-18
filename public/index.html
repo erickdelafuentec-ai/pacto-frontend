@@ -12416,6 +12416,28 @@ window.addEventListener('appinstalled', function() {
     } else if (p.origen === 'nuevo') {
       origenBadge = '<span style="display:inline-block; background:#fff3d6; color:#854F0B; padding:2px 8px; border-radius:999px; font-size:10px; font-weight:700; letter-spacing:0.5px; margin-left:6px;">NUEVO</span>';
     }
+    var telefonoActual = p.telefono || '';
+    var telBloqueHtml = '';
+    if (telefonoActual) {
+      // Caso con teléfono ya cargado: mostrar texto + botones Editar y Chatear
+      telBloqueHtml =
+        '<div class="pat-meta" id="saaDacTelBloque" style="margin-top:4px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">' +
+          '<span>📞 <span id="saaDacTelTexto">' + telefonoActual + '</span></span>' +
+          '<button class="saa-btn saa-btn-ghost saa-btn-sm" style="padding:3px 10px; font-size:11px;" ' +
+                  'onclick="saaDacionEditarTel()" title="Modificar número de teléfono">✏️ Editar</button>' +
+          '<button class="saa-btn saa-btn-success saa-btn-sm" style="padding:3px 10px; font-size:11px;" ' +
+                  'onclick="saaDacionChatear()">💬 Chatear</button>' +
+        '</div>';
+    } else {
+      // Caso sin teléfono: ofrecer agregarlo inmediatamente
+      telBloqueHtml =
+        '<div class="pat-meta" id="saaDacTelBloque" style="margin-top:4px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">' +
+          '<span style="color:var(--pa-amber-700);">📞 Sin teléfono registrado</span>' +
+          '<button class="saa-btn saa-btn-primary saa-btn-sm" style="padding:3px 10px; font-size:11px;" ' +
+                  'onclick="saaDacionEditarTel()">➕ Agregar teléfono</button>' +
+        '</div>';
+    }
+
     el.innerHTML =
       '<div class="saa-pat-card">' +
         '<strong>' + (p.nombre || '<em style="color:var(--pa-gray-600); font-style:italic;">Paciente nuevo — completar datos</em>') + origenBadge + '</strong>' +
@@ -12426,7 +12448,7 @@ window.addEventListener('appinstalled', function() {
           (p.prevision ? ' · 💳 ' + p.prevision : '') +
         '</div>' +
         (p.direccion ? '<div class="pat-meta" style="margin-top:4px;">🏠 ' + p.direccion + '</div>' : '') +
-        (p.telefono  ? '<div class="pat-meta" style="margin-top:4px;">📞 ' + p.telefono + ' <button class="saa-btn saa-btn-success saa-btn-sm" style="margin-left:8px; padding:3px 10px; font-size:11px;" onclick="saaDacionChatear()">💬 Chatear</button></div>' : '') +
+        telBloqueHtml +
         (esNuevo ?
           '<div style="margin-top:10px; padding-top:10px; border-top:1px dashed var(--pa-navy-300);">' +
             '<label class="saa-label" style="margin-top:0">Nombre completo</label>' +
@@ -12442,6 +12464,84 @@ window.addEventListener('appinstalled', function() {
   window.saaDacionUpdateNuevoNombre = function(v) { if (dacionPaciente) dacionPaciente.nombre = v; };
   window.saaDacionUpdateNuevoEdad   = function(v) { if (dacionPaciente) dacionPaciente.edad = v; };
   window.saaDacionUpdateNuevoComuna = function(v) { if (dacionPaciente) dacionPaciente.comuna = v; };
+
+  // Activa modo edición del teléfono en la card del paciente
+  window.saaDacionEditarTel = function() {
+    var bloque = document.getElementById('saaDacTelBloque');
+    if (!bloque || !dacionPaciente) return;
+    var actual = dacionPaciente.telefono || '';
+    bloque.innerHTML =
+      '<span>📞</span>' +
+      '<input type="tel" class="saa-input" id="saaDacTelInput" value="' + actual.replace(/"/g,'&quot;') + '" ' +
+             'placeholder="+56 9 1234 5678" ' +
+             'style="flex:1; min-width:180px; max-width:240px; padding:5px 10px; font-size:13px;" ' +
+             'onkeydown="if(event.key===\'Enter\'){event.preventDefault();saaDacionGuardarTel();}else if(event.key===\'Escape\'){saaDacionCancelarTel();}">' +
+      '<button class="saa-btn saa-btn-success saa-btn-sm" style="padding:3px 10px; font-size:11px;" ' +
+              'onclick="saaDacionGuardarTel()">✓ Guardar</button>' +
+      '<button class="saa-btn saa-btn-ghost saa-btn-sm" style="padding:3px 10px; font-size:11px;" ' +
+              'onclick="saaDacionCancelarTel()">Cancelar</button>';
+    setTimeout(function(){
+      var inp = document.getElementById('saaDacTelInput');
+      if (inp) { inp.focus(); inp.select(); }
+    }, 30);
+  };
+
+  // Cancela la edición y re-renderiza con el valor anterior
+  window.saaDacionCancelarTel = function() {
+    saaDacionRenderPaciente();
+  };
+
+  // Guarda el nuevo teléfono en el paciente y, si está en la base local, lo persiste
+  window.saaDacionGuardarTel = function() {
+    var inp = document.getElementById('saaDacTelInput');
+    if (!inp || !dacionPaciente) return;
+    var nuevo = (inp.value || '').trim();
+
+    // Validación básica: si lo dejaron vacío, permitir borrar; si tiene contenido, validar largo mínimo
+    if (nuevo && nuevo.replace(/\D/g,'').length < 8) {
+      alert('⚠️ El número parece muy corto.\n\nIngresa un número válido (mínimo 8 dígitos) o déjalo vacío para borrarlo.');
+      inp.focus();
+      return;
+    }
+
+    var anterior = dacionPaciente.telefono || '';
+    dacionPaciente.telefono = nuevo;
+
+    // Si el paciente está registrado localmente (no es de la base HGGB ni nuevo sin registrar),
+    // persistimos el cambio en SAA.pacientes para que dure entre sesiones
+    if (window.SAA && Array.isArray(SAA.pacientes)) {
+      var pac = SAA.pacientes.find(function(x){ return x.rut === dacionPaciente.rut; });
+      if (pac) {
+        pac.telefono = nuevo;
+        pac.modificadoEn = new Date().toISOString();
+        if (typeof saaSave === 'function') {
+          try { saaSave('pacientes'); } catch(e){}
+        }
+      }
+    }
+
+    // Si tiene chats abiertos, también actualizamos el teléfono allí
+    if (window.SAA && SAA.chats && SAA.chats[dacionPaciente.rut]) {
+      SAA.chats[dacionPaciente.rut].telefono = nuevo;
+      if (typeof saaChatSave === 'function') {
+        try { saaChatSave(); } catch(e){}
+      }
+    }
+
+    saaDacionRenderPaciente();
+
+    if (nuevo !== anterior) {
+      // Pequeño feedback visual
+      var bloque = document.getElementById('saaDacTelBloque');
+      if (bloque) {
+        var aviso = document.createElement('span');
+        aviso.textContent = '✓ Actualizado';
+        aviso.style.cssText = 'color:#059669; font-size:11px; font-weight:600; margin-left:6px;';
+        bloque.appendChild(aviso);
+        setTimeout(function(){ if (aviso.parentNode) aviso.parentNode.removeChild(aviso); }, 2200);
+      }
+    }
+  };
 
   // Ir al chat con este paciente
   window.saaDacionChatear = function() {
@@ -12627,112 +12727,139 @@ window.addEventListener('appinstalled', function() {
         SAA.chats[cita.rut].updated = new Date().toISOString();
         saaChatSave();
 
-        // Intentar abrir WhatsApp con el mensaje precargado
+        // NUEVO FLUJO: NO abrimos WhatsApp automáticamente (los firewalls lo bloquean).
+        // En vez de eso, mostramos un modal con un botón grande que el usuario hace clic.
+        // Una acción de clic directo del usuario casi siempre pasa el firewall.
         var telLimpio = saaChatFormatTel(telPaciente);
-        var waBloqueado = false;
         var waUrl = '';
         if (telLimpio.length >= 11) {
           waUrl = 'https://wa.me/' + telLimpio + '?text=' + encodeURIComponent(mensajeWa);
-          try {
-            var nuevaVentana = window.open(waUrl, '_blank');
-            // Si el navegador / firewall bloquea, window.open devuelve null o una ventana que se cerró sola
-            if (!nuevaVentana || nuevaVentana.closed || typeof nuevaVentana.closed === 'undefined') {
-              waBloqueado = true;
-            } else {
-              // Verificar pasados unos ms si la ventana sigue abierta (algunos firewalls la cierran)
-              setTimeout(function(){
-                try { if (nuevaVentana.closed) { /* ya no podemos avisar aquí, pero queda registrado */ } } catch(e){}
-              }, 800);
-            }
-          } catch(e) {
-            waBloqueado = true;
-          }
-        } else {
-          waBloqueado = true; // teléfono inválido
         }
-        // Guardar el flag para mostrarlo en la confirmación final
-        window._saaUltimoWa = { bloqueado: waBloqueado, url: waUrl, mensaje: mensajeWa, telefono: telPaciente };
+        // Guardamos los datos para mostrarlos después del alert de confirmación
+        window._saaUltimoWa = {
+          url: waUrl,
+          mensaje: mensajeWa,
+          telefono: telPaciente,
+          telefonoLimpio: telLimpio,
+          paciente: cita.nombre
+        };
       }
     }
 
-    // Construir mensaje de confirmación final
+    // Mensaje de confirmación final (corto, sin información del WhatsApp)
     var mensajeFinal = '✓ Hora agendada\n\n' +
       cita.nombre + '\n' +
       cita.actividad + '\n' +
       fmtFecha(cita.fecha) + ' · ' + cita.hora + ' hrs\n' +
       'Con ' + cita.profesionalNombre;
 
+    alert(mensajeFinal);
+
+    // Si el usuario marcó WhatsApp, mostrar el modal de envío manual
     if (wa) {
       var ultimo = window._saaUltimoWa || {};
-      if (ultimo.bloqueado) {
-        mensajeFinal += '\n\n⚠️ WhatsApp no se pudo abrir automáticamente\n' +
-                        '(probablemente bloqueado por el firewall del hospital).\n\n' +
-                        'La cita SÍ quedó guardada. Por favor abre WhatsApp\n' +
-                        'manualmente desde tu teléfono y envía el mensaje.';
-        // Mostrar también un panel persistente con el mensaje para copiar
-        saaMostrarPanelWaBloqueado(ultimo.telefono, ultimo.mensaje, ultimo.url);
+      if (ultimo.url) {
+        saaMostrarPanelEnvioWa(ultimo.paciente, ultimo.telefono, ultimo.mensaje, ultimo.url);
       } else {
-        mensajeFinal += '\n\n💬 WhatsApp abierto en otra pestaña.';
+        alert('⚠️ El paciente no tiene número de teléfono válido en el sistema.\n' +
+              'La cita SÍ quedó guardada, pero no se podrá enviar WhatsApp.');
       }
     }
 
-    alert(mensajeFinal);
     saaDacionLimpiar();
   };
 
-  // Muestra un panel flotante con el mensaje de WhatsApp para que el usuario lo copie
-  // cuando el firewall bloqueó la apertura automática
-  window.saaMostrarPanelWaBloqueado = function(telefono, mensaje, url) {
+  // Panel principal: modal grande centrado con botón clickeable para enviar WhatsApp.
+  // Aparece SIEMPRE después de agendar con la opción WhatsApp marcada.
+  // El clic del usuario casi nunca es bloqueado por firewalls (a diferencia de window.open automático).
+  window.saaMostrarPanelEnvioWa = function(paciente, telefono, mensaje, url) {
     // Eliminar panel anterior si existe
-    var anterior = document.getElementById('saaWaBloqueadoPanel');
+    var anterior = document.getElementById('saaWaPanel');
     if (anterior) anterior.remove();
 
-    var panel = document.createElement('div');
-    panel.id = 'saaWaBloqueadoPanel';
-    panel.style.cssText = 'position:fixed; bottom:20px; right:20px; width:380px; max-width:calc(100vw - 40px); ' +
-      'background:#fff; border:2px solid #dc2626; border-radius:12px; padding:16px; ' +
-      'box-shadow:0 10px 40px rgba(0,0,0,0.3); z-index:99999; font-family:inherit;';
+    var overlay = document.createElement('div');
+    overlay.id = 'saaWaPanel';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:99999; ' +
+      'display:flex; align-items:center; justify-content:center; padding:20px; font-family:inherit;';
 
-    var telTxt = telefono ? '📞 ' + telefono : '(sin teléfono)';
     var msgEsc = (mensaje||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    var urlEsc = (url||'').replace(/'/g, "\\'");
 
-    panel.innerHTML =
-      '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">' +
-        '<strong style="color:#dc2626; font-size:14px;">⚠️ WhatsApp bloqueado por firewall</strong>' +
-        '<button onclick="document.getElementById(\'saaWaBloqueadoPanel\').remove()" ' +
-                'style="background:none; border:none; font-size:18px; cursor:pointer; color:#666;">✕</button>' +
-      '</div>' +
-      '<div style="font-size:12px; color:#374151; margin-bottom:10px;">' +
-        'Envía este mensaje manualmente desde tu teléfono:' +
-      '</div>' +
-      '<div style="background:#f3f4f6; padding:10px; border-radius:6px; font-size:12px; color:#111827; margin-bottom:10px;">' +
-        '<div style="font-weight:600; margin-bottom:6px;">' + telTxt + '</div>' +
-        '<div style="white-space:pre-wrap;" id="saaWaBloqueadoTexto">' + msgEsc + '</div>' +
-      '</div>' +
-      '<div style="display:flex; gap:8px;">' +
-        '<button onclick="saaCopiarMensajeWa()" ' +
-                'style="flex:1; background:#1565c0; color:#fff; border:none; padding:8px 12px; ' +
-                'border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">' +
-          '📋 Copiar mensaje' +
-        '</button>' +
-        '<button onclick="window.open(\'' + url.replace(/'/g, "\\'") + '\',\'_blank\')" ' +
-                'style="flex:1; background:#25d366; color:#fff; border:none; padding:8px 12px; ' +
-                'border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">' +
-          '🔁 Reintentar WhatsApp' +
-        '</button>' +
+    overlay.innerHTML =
+      '<div style="background:#fff; border-radius:16px; max-width:480px; width:100%; max-height:90vh; ' +
+              'overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,0.4);">' +
+        // Header verde tipo WhatsApp
+        '<div style="background:#25d366; padding:20px 24px; border-radius:16px 16px 0 0; ' +
+                    'display:flex; justify-content:space-between; align-items:center;">' +
+          '<div style="display:flex; align-items:center; gap:12px;">' +
+            '<div style="font-size:32px;">💬</div>' +
+            '<div>' +
+              '<div style="color:#fff; font-size:16px; font-weight:700;">Enviar WhatsApp</div>' +
+              '<div style="color:#dcfce7; font-size:12px;">' + (paciente || 'Paciente') + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<button onclick="document.getElementById(\'saaWaPanel\').remove()" ' +
+                  'style="background:rgba(255,255,255,0.2); border:none; color:#fff; ' +
+                  'width:32px; height:32px; border-radius:50%; font-size:18px; cursor:pointer;">✕</button>' +
+        '</div>' +
+        // Cuerpo
+        '<div style="padding:24px;">' +
+          // Datos del destinatario
+          '<div style="background:#f0f9ff; border-left:4px solid #0284c7; padding:10px 14px; ' +
+                      'border-radius:6px; margin-bottom:14px; font-size:13px; color:#0c4a6e;">' +
+            '<strong>📞 Destinatario:</strong> ' + (telefono || '(sin teléfono)') +
+          '</div>' +
+          // Preview del mensaje
+          '<div style="font-size:12px; color:#6b7280; margin-bottom:6px; font-weight:600;">MENSAJE A ENVIAR:</div>' +
+          '<div style="background:#f9fafb; border:1px solid #e5e7eb; padding:14px; border-radius:8px; ' +
+                      'font-size:13px; color:#1f2937; margin-bottom:18px; white-space:pre-wrap; ' +
+                      'max-height:200px; overflow-y:auto;" id="saaWaPanelTexto">' + msgEsc + '</div>' +
+
+          // BOTÓN PRINCIPAL — clic directo del usuario
+          '<a href="' + urlEsc + '" target="_blank" rel="noopener" ' +
+                'onclick="setTimeout(function(){document.getElementById(\'saaWaPanel\') && document.getElementById(\'saaWaPanel\').remove();}, 500);" ' +
+                'style="display:flex; align-items:center; justify-content:center; gap:10px; ' +
+                'background:#25d366; color:#fff !important; text-decoration:none; ' +
+                'padding:16px 24px; border-radius:10px; font-size:16px; font-weight:700; ' +
+                'box-shadow:0 4px 14px rgba(37,211,102,0.4); margin-bottom:10px;">' +
+            '<span style="font-size:22px;">📲</span>' +
+            '<span>Enviar por WhatsApp</span>' +
+          '</a>' +
+
+          // Aviso si el botón no funciona
+          '<div style="background:#fffbeb; border:1px solid #fcd34d; padding:10px 12px; ' +
+                      'border-radius:6px; font-size:11px; color:#78350f; margin-bottom:12px;">' +
+            '⚠️ Si el botón verde no abre WhatsApp (firewall del hospital), usa el botón "Copiar mensaje" ' +
+            'y pégalo manualmente en WhatsApp desde tu teléfono.' +
+          '</div>' +
+
+          // Botones secundarios
+          '<div style="display:flex; gap:8px;">' +
+            '<button onclick="saaCopiarMensajeWa()" ' +
+                    'style="flex:1; background:#1565c0; color:#fff; border:none; padding:11px; ' +
+                    'border-radius:8px; font-size:13px; font-weight:600; cursor:pointer;">' +
+              '📋 Copiar mensaje' +
+            '</button>' +
+            '<button onclick="document.getElementById(\'saaWaPanel\').remove()" ' +
+                    'style="flex:1; background:#e5e7eb; color:#374151; border:none; padding:11px; ' +
+                    'border-radius:8px; font-size:13px; font-weight:600; cursor:pointer;">' +
+              'Cerrar' +
+            '</button>' +
+          '</div>' +
+        '</div>' +
       '</div>';
 
-    document.body.appendChild(panel);
+    document.body.appendChild(overlay);
   };
 
   // Copia el mensaje del panel al portapapeles
   window.saaCopiarMensajeWa = function() {
-    var el = document.getElementById('saaWaBloqueadoTexto');
+    var el = document.getElementById('saaWaPanelTexto');
     if (!el) return;
     var texto = el.textContent || '';
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(texto).then(function(){
-        alert('✓ Mensaje copiado al portapapeles');
+        alert('✓ Mensaje copiado.\n\nAhora abre WhatsApp manualmente y pégalo en el chat del paciente.');
       }).catch(function(){
         saaCopiarMensajeWaFallback(texto);
       });
@@ -12749,7 +12876,7 @@ window.addEventListener('appinstalled', function() {
     ta.style.left = '-9999px';
     document.body.appendChild(ta);
     ta.select();
-    try { document.execCommand('copy'); alert('✓ Mensaje copiado al portapapeles'); }
+    try { document.execCommand('copy'); alert('✓ Mensaje copiado al portapapeles.\n\nAhora abre WhatsApp manualmente y pégalo en el chat del paciente.'); }
     catch(e) { alert('No se pudo copiar automáticamente. Selecciónalo manualmente.'); }
     document.body.removeChild(ta);
   }
