@@ -4258,6 +4258,7 @@ body.has-shell .back-btn { display: none !important; }
                 <option value="PACTO_SM">PACTO Salud Mental</option>
                 <option value="PACTO_OFT">PACTO Oftalmología</option>
                 <option value="PACTO_SOMAT">PACTO Somatoprotesista</option>
+                <option value="OFT_SOMAT">Oftalmología Somatoprotesista</option>
               </select>
             </div>
             <div>
@@ -4397,6 +4398,7 @@ body.has-shell .back-btn { display: none !important; }
             <option value="PACTO_SM">PACTO Salud Mental</option>
             <option value="PACTO_OFT">PACTO Oftalmología</option>
             <option value="PACTO_SOMAT">PACTO Somatoprotesista</option>
+            <option value="OFT_SOMAT">Oftalmología Somatoprotesista</option>
           </select>
         </div>
         <div>
@@ -5263,6 +5265,7 @@ body.has-shell .back-btn { display: none !important; }
                 <option value="PACTO_SM">PACTO Salud Mental</option>
                 <option value="PACTO_OFT">PACTO Oftalmología</option>
                 <option value="PACTO_SOMAT">PACTO Somatoprotesista</option>
+                <option value="OFT_SOMAT">Oftalmología Somatoprotesista</option>
               </select>
             </div>
             <div>
@@ -12310,7 +12313,13 @@ window.addEventListener('appinstalled', function() {
       // PACTO Somatoprotesista
       {agrup:'PACTO_SOMAT',  act:'Rehabilitación: prótesis fija', mod:'Presencial'},
       {agrup:'PACTO_SOMAT',  act:'Rehabilitación: prótesis removible', mod:'Presencial'},
-      {agrup:'PACTO_SOMAT',  act:'Control somatoprotésico',       mod:'Presencial'}
+      {agrup:'PACTO_SOMAT',  act:'Control somatoprotésico',       mod:'Presencial'},
+      // Oftalmología Somatoprotesista
+      {agrup:'OFT_SOMAT',    act:'Oftalmología general',          mod:'Presencial'},
+      {agrup:'OFT_SOMAT',    act:'Retina',                        mod:'Presencial'},
+      {agrup:'OFT_SOMAT',    act:'Glaucoma',                      mod:'Presencial'},
+      {agrup:'OFT_SOMAT',    act:'Estrabismo',                    mod:'Presencial'},
+      {agrup:'OFT_SOMAT',    act:'Uveítis',                       mod:'Presencial'}
     ];
   }
 
@@ -13714,6 +13723,8 @@ window.addEventListener('appinstalled', function() {
 
   window.saaEsperaRender = function() {
     var data = saaEsperaUnidas();
+    // Detectar citas futuras y marcar como AGENDADA los pacientes que ya tienen hora
+    data = saaEsperaDetectarCitasFuturas(data);
     var q      = (document.getElementById('saaEsperaQ').value || '').toLowerCase();
     var agFil  = document.getElementById('saaEsperaAgrupFiltro') ? document.getElementById('saaEsperaAgrupFiltro').value : '';
     var act    = document.getElementById('saaEsperaAct').value;
@@ -13801,14 +13812,29 @@ window.addEventListener('appinstalled', function() {
         obsHtml = '<div style="font-size:11px; color:#6b7280; margin-top:3px; font-style:italic;" title="' + r.observaciones.replace(/"/g,'&quot;') + '">📝 ' + obsCorta + '</div>';
       }
 
-      // Acciones: para los históricos permitimos AGENDAR (lo lleva a Dación) y ELIMINAR si es necesario
+      // Acciones: contextuales según el estado del paciente
       var acciones = '';
-      if (r.estado === 'INGRESADA' || r.estado === 'EN ESPERA') {
+      if (r._tieneCitaFutura) {
+        // Ya está agendado: ofrecer ir a verlo en la agenda
+        acciones = '<button class="saa-btn saa-btn-success saa-btn-sm" onclick="saaEsperaVerCita(\'' + r.rut + '\')" title="Ver la cita en la agenda">📅 Ver agenda</button> ';
+      } else if (r.estado === 'INGRESADA' || r.estado === 'EN ESPERA') {
         acciones = '<button class="saa-btn saa-btn-primary saa-btn-sm" onclick="saaEsperaAgendar(\'' + r.id + '\')">📅 Agendar</button> ';
       }
       if (r._origen !== 'historico') {
         acciones += '<button class="saa-btn saa-btn-danger saa-btn-sm" onclick="saaEsperaEliminar(\'' + r.id + '\')" title="Eliminar">✕</button>';
       }
+
+      // Información de la cita futura (fecha y profesional) si existe
+      var citaFuturaInfo = '';
+      if (r._tieneCitaFutura) {
+        citaFuturaInfo = '<div style="font-size:11px; color:#166534; margin-top:3px; font-weight:600;">' +
+          '📅 ' + fmtFechaCorta(r.citaFecha) + (r.citaHora ? ' · ' + r.citaHora + ' hrs' : '') +
+          (r.citaProfesional ? '<br><span style="font-weight:400; color:#15803d;">👤 ' + r.citaProfesional + '</span>' : '') +
+        '</div>';
+      } else if (r.citaFecha) {
+        citaFuturaInfo = '<div style="font-size:11px; color:var(--pa-gray-600); margin-top:3px;">📅 ' + fmtFechaCorta(r.citaFecha) + '</div>';
+      }
+
       return '<tr' + (r._origen === 'historico' ? ' style="background:var(--pa-gray-50);"' : '') + '>' +
         '<td>' + diasBadge + '</td>' +
         '<td><strong>' + (r.nombre||'') + '</strong>' + gesBadge + histBadge + llamadoBadge +
@@ -13818,11 +13844,49 @@ window.addEventListener('appinstalled', function() {
         '<td>' + (r.actividad||'') + '</td>' +
         '<td>' + (r.diagnostico || '<span style="color:var(--pa-gray-500)">—</span>') + '</td>' +
         '<td><span class="saa-badge ' + estadoCls + '">' + r.estado + '</span>' +
-            (r.citaFecha ? '<div style="font-size:11px; color:var(--pa-gray-600); margin-top:3px;">📅 ' + fmtFechaCorta(r.citaFecha) + '</div>' : '') +
+            citaFuturaInfo +
         '</td>' +
         '<td style="text-align:right; white-space:nowrap;">' + acciones + '</td>' +
       '</tr>';
     }).join('');
+  };
+
+  // Ir al módulo de Agenda a ver la cita futura del paciente
+  window.saaEsperaVerCita = function(rut) {
+    if (!rut) return;
+    // Buscar la cita futura más próxima del paciente
+    var hoy = new Date(); hoy.setHours(0,0,0,0);
+    var hoyIso = hoy.getFullYear() + '-' + String(hoy.getMonth()+1).padStart(2,'0') + '-' + String(hoy.getDate()).padStart(2,'0');
+    var citasUnidas = (typeof saaAgendaCitasUnidas === 'function') ? saaAgendaCitasUnidas() : (SAA.citas || []);
+    var citaFut = null;
+    citasUnidas.forEach(function(c){
+      if (c.rut !== rut || !c.fecha || c.fecha < hoyIso) return;
+      if (c.estado === 'CANCELADA' || c.estado === 'NSP' || c.estado === 'AUSENTE' || c.estado === 'REAGENDAR') return;
+      if (!citaFut || (c.fecha + ' ' + (c.hora||'')) < (citaFut.fecha + ' ' + (citaFut.hora||''))) {
+        citaFut = c;
+      }
+    });
+    if (!citaFut) {
+      alert('No se encontró la cita futura. Refrescando lista...');
+      saaEsperaRender();
+      return;
+    }
+    // Ir a la agenda y posicionar el mes en la fecha de la cita
+    goTo('screenAgenda');
+    setTimeout(function(){
+      var partes = citaFut.fecha.split('-');
+      if (typeof saaAgCalDate !== 'undefined' && partes.length === 3) {
+        saaAgCalDate = new Date(parseInt(partes[0]), parseInt(partes[1])-1, 1);
+        saaAgCalDate.setHours(0,0,0,0);
+        if (typeof saaAgendaCalRender === 'function') saaAgendaCalRender();
+      }
+      // Abrir el modal del día con esa cita
+      setTimeout(function(){
+        if (typeof window.saaAgendaCalVerDia === 'function') {
+          window.saaAgendaCalVerDia(citaFut.fecha);
+        }
+      }, 200);
+    }, 150);
   };
 
   window.saaEsperaAgendar = function(id) {
@@ -13835,16 +13899,91 @@ window.addEventListener('appinstalled', function() {
       prevision: r.prevision || '',
       origen: r._origen === 'historico' ? 'historico' : 'local'
     };
+    // Aplicar override de paciente para tener teléfono editado si existe
+    if (typeof saaAplicarOverridePaciente === 'function') {
+      saaAplicarOverridePaciente(dacionPaciente);
+    }
     goTo('screenDacion');
     setTimeout(function(){
       saaDacionRenderPaciente();
       var c = limpiarRut(r.rut);
       if (c.length >= 2) {
-        document.getElementById('saaDacRutCuerpo').value = c.slice(0,-1);
-        document.getElementById('saaDacRutDv').value     = c.slice(-1);
+        var rutCuerpo = document.getElementById('saaDacRutCuerpo');
+        var rutDv     = document.getElementById('saaDacRutDv');
+        if (rutCuerpo) rutCuerpo.value = c.slice(0,-1);
+        if (rutDv)     rutDv.value     = c.slice(-1);
+      }
+      // Preseleccionar agrupación y actividad si la espera ya las tenía
+      if (r.agrupacion) {
+        var agrupSel = document.getElementById('saaDacAgrup');
+        if (agrupSel) {
+          agrupSel.value = r.agrupacion;
+          if (typeof saaDacionAgrupChange === 'function') saaDacionAgrupChange();
+          // Preseleccionar la actividad luego de que se llenen las opciones
+          if (r.actividad) {
+            setTimeout(function(){
+              var actSel = document.getElementById('saaDacAct');
+              if (actSel) {
+                actSel.value = r.actividad;
+                if (typeof saaDacionActChange === 'function') saaDacionActChange();
+              }
+            }, 50);
+          }
+        }
+      }
+      // Mensaje de contexto
+      var aviso = document.getElementById('saaDacPacienteResultado');
+      if (aviso) {
+        var ya = document.getElementById('saaDacEsperaContext');
+        if (ya) ya.remove();
+        var ctx = document.createElement('div');
+        ctx.id = 'saaDacEsperaContext';
+        ctx.style.cssText = 'background:#dbeafe; border-left:4px solid #1565c0; padding:10px 14px; border-radius:6px; margin-bottom:12px; font-size:12px; color:#1e40af;';
+        ctx.innerHTML = '⏳ <strong>Paciente desde lista de espera</strong> · ' +
+                        (r._dias != null ? r._dias + ' días esperando' : '') +
+                        (r.diagnostico ? ' · ' + r.diagnostico : '');
+        aviso.parentNode.insertBefore(ctx, aviso);
       }
     }, 100);
   };
+
+  // ─── Detecta si un paciente de la lista de espera ya tiene una cita futura
+  // y, si existe, actualiza su estado a AGENDADA con la fecha de la cita.
+  // Se aplica sobre la data antes de filtrar/renderizar.
+  function saaEsperaDetectarCitasFuturas(data) {
+    var hoy = new Date(); hoy.setHours(0,0,0,0);
+    var hoyIso = hoy.getFullYear() + '-' + String(hoy.getMonth()+1).padStart(2,'0') + '-' + String(hoy.getDate()).padStart(2,'0');
+
+    // Construir mapa rut → cita futura activa más cercana
+    var citasUnidas = (typeof saaAgendaCitasUnidas === 'function') ? saaAgendaCitasUnidas() : (SAA.citas || []);
+    var citasFuturasPorRut = {};
+    citasUnidas.forEach(function(c){
+      if (!c.rut || !c.fecha) return;
+      if (c.fecha < hoyIso) return;
+      // Solo considerar citas "activas" (no canceladas/NSP/ausente/reagendar)
+      if (c.estado === 'CANCELADA' || c.estado === 'NSP' || c.estado === 'AUSENTE' || c.estado === 'REAGENDAR') return;
+      var prev = citasFuturasPorRut[c.rut];
+      if (!prev || (c.fecha + ' ' + (c.hora||'')) < (prev.fecha + ' ' + (prev.hora||''))) {
+        citasFuturasPorRut[c.rut] = c;
+      }
+    });
+
+    // Aplicar a cada registro de la lista
+    data.forEach(function(r){
+      if (!r.rut) return;
+      var citaFut = citasFuturasPorRut[r.rut];
+      if (citaFut) {
+        // Si tiene cita futura, marcar como AGENDADA con la fecha de esa cita
+        r.estado = 'AGENDADA';
+        r.citaFecha = citaFut.fecha;
+        r.citaHora = citaFut.hora;
+        r.citaActividad = citaFut.actividad;
+        r.citaProfesional = citaFut.profesionalNombre;
+        r._tieneCitaFutura = true;
+      }
+    });
+    return data;
+  }
 
   window.saaEsperaEliminar = function(id) {
     if (!confirm('¿Eliminar este registro de la lista de espera?')) return;
