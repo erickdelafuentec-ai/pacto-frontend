@@ -38,6 +38,8 @@ const ALLOWED_KEYS = [
   'saaRecetas',        // Recetas médicas emitidas
   'saaConsentTele',    // RUTs con consentimiento informado telemedicina
   'paCalEventos',      // Eventos del calendario (reuniones, fechas importantes)
+  'saaChats',          // Conversaciones de chat WhatsApp por paciente
+  'saaNumeroPacto',    // Número WhatsApp institucional del programa
 ];
 
 const DEFAULT_STORE = {};
