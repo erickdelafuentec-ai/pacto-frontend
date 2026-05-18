@@ -4267,18 +4267,18 @@ body.has-shell .back-btn { display: none !important; }
           </div>
 
           <label class="saa-label">Profesional</label>
-          <select class="saa-select" id="saaDacProf" disabled>
+          <select class="saa-select" id="saaDacProf" disabled onchange="saaDacionRefreshDisp()">
             <option value="">— Seleccione actividad —</option>
           </select>
 
           <div class="saa-row">
             <div>
               <label class="saa-label">Fecha *</label>
-              <input class="saa-input" type="date" id="saaDacFecha">
+              <input class="saa-input" type="date" id="saaDacFecha" onchange="saaDacionRefreshDisp()">
             </div>
             <div>
               <label class="saa-label">Hora *</label>
-              <input class="saa-input" type="time" id="saaDacHora" value="09:00">
+              <input class="saa-input" type="time" id="saaDacHora" value="09:00" onchange="saaDacionRefreshDisp()">
             </div>
             <div>
               <label class="saa-label">Modalidad</label>
@@ -4288,6 +4288,12 @@ body.has-shell .back-btn { display: none !important; }
                 <option value="Domiciliaria">🏠 Visita domiciliaria</option>
               </select>
             </div>
+          </div>
+
+          <!-- Panel de disponibilidad del profesional -->
+          <div id="saaDacDisp" style="display:none; margin-top:10px; padding:12px 14px; border-radius:10px; border:1px solid var(--pa-gray-300); background:var(--pa-gray-50);">
+            <div style="font-size:12px; font-weight:700; color:var(--pa-navy-800); margin-bottom:8px;" id="saaDacDispTitulo">Disponibilidad del profesional</div>
+            <div id="saaDacDispContenido" style="font-size:12px; color:var(--pa-gray-700);"></div>
           </div>
 
           <label class="saa-label">Motivo (opcional)</label>
@@ -5833,8 +5839,9 @@ body.has-shell .back-btn { display: none !important; }
     </div>
 
     <!-- Botón siempre visible para guardar el acta tal cual (transcripción + notas) -->
-    <button class="btn btn-success" onclick="guardarActaGrabacion()" style="width:100%; margin-top:10px; font-size:15px; padding:14px;">
-      💾 Guardar acta
+    <button onclick="guardarActaGrabacion()" style="width:100%; margin-top:14px; padding:16px 20px; background:#059669 !important; color:#ffffff !important; border:none; border-radius:10px; font-size:16px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(5,150,105,0.35); display:flex; align-items:center; justify-content:center; gap:8px;">
+      <span style="font-size:20px;">💾</span>
+      <span>GUARDAR ACTA</span>
     </button>
   </div>
 </div>
@@ -5922,7 +5929,7 @@ body.has-shell .back-btn { display: none !important; }
       <div class="acta-preview" id="actaPreview" contenteditable="false"></div>
 
       <div class="btn-row">
-        <button class="btn btn-success" onclick="guardarActa()">💾 Guardar acta</button>
+        <button onclick="guardarActa()" style="background:#059669 !important; color:#ffffff !important; border:none; padding:10px 18px; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">💾 Guardar acta</button>
         <button class="btn btn-danger" onclick="exportarActaWord()">📄 Descargar PDF</button>
         <button class="btn btn-secondary" onclick="compartirTexto()">📤 Compartir</button>
       </div>
@@ -6426,7 +6433,7 @@ async function apiLoadAll() {
     devolucionData.historial = data.devolucionHistorial || [];
     // ── Nuevas keys SAA: copiar del servidor al localStorage ─────────
     // Los módulos SAA leen desde localStorage al inicializar (saaLoad)
-    var newKeys = ['saaCitas','saaEspera','saaWhatsapp','saaTele','saaDomi','saaRecetas','saaConsentTele','paCalEventos','saaChats','saaNumeroPacto'];
+    var newKeys = ['saaCitas','saaEspera','saaWhatsapp','saaTele','saaDomi','saaRecetas','saaConsentTele','paCalEventos','saaChats','saaNumeroPacto','saa_citas_hist_override'];
     newKeys.forEach(function(k){
       if (data[k] !== undefined && data[k] !== null) {
         try {
@@ -12248,10 +12255,12 @@ window.addEventListener('appinstalled', function() {
     if (!act) {
       prof.innerHTML = '<option value="">— Seleccione actividad —</option>';
       prof.disabled = true;
+      saaDacionRefreshDisp();
       return;
     }
     prof.innerHTML = '<option value="">— Seleccione —</option>' + getStaffOptions();
     prof.disabled = false;
+    saaDacionRefreshDisp();
   };
 
   window.saaDacionBuscar = function() {
@@ -12445,6 +12454,70 @@ window.addEventListener('appinstalled', function() {
     );
   };
 
+  // Refresca el panel de disponibilidad del profesional para la fecha elegida
+  window.saaDacionRefreshDisp = function() {
+    var prof  = document.getElementById('saaDacProf').value;
+    var fecha = document.getElementById('saaDacFecha').value;
+    var hora  = document.getElementById('saaDacHora').value;
+    var panel = document.getElementById('saaDacDisp');
+    var titEl = document.getElementById('saaDacDispTitulo');
+    var contEl= document.getElementById('saaDacDispContenido');
+    if (!panel || !contEl) return;
+
+    if (!prof || !fecha) {
+      panel.style.display = 'none';
+      return;
+    }
+
+    var staff = getStaffByRut(prof);
+    var nombreProf = staff ? staff.nombre : prof;
+
+    // Recoger todas las citas activas (no canceladas/NSP/ausente/reagendar) del profesional en esa fecha
+    var ocupadas = (SAA.citas || []).filter(function(c){
+      return c.profesionalRut === prof
+          && c.fecha === fecha
+          && c.estado !== 'CANCELADA'
+          && c.estado !== 'NSP'
+          && c.estado !== 'AUSENTE'
+          && c.estado !== 'REAGENDAR';
+    }).sort(function(a,b){ return (a.hora||'') < (b.hora||'') ? -1 : 1; });
+
+    panel.style.display = 'block';
+    titEl.textContent = '🗓️ Disponibilidad de ' + nombreProf + ' — ' + fmtFecha(fecha);
+
+    // ¿La hora actualmente seleccionada está chocando?
+    var choque = ocupadas.find(function(c){ return c.hora === hora; });
+    var bannerChoque = '';
+    if (choque && hora) {
+      bannerChoque = '<div style="background:#fee2e2; color:#991b1b; padding:8px 10px; border-radius:6px; margin-bottom:8px; font-weight:600;">' +
+        '⛔ La hora ' + hora + ' ya está OCUPADA por: ' + choque.nombre + ' (' + choque.actividad + ')' +
+        '</div>';
+    } else if (hora) {
+      bannerChoque = '<div style="background:#dcfce7; color:#166534; padding:8px 10px; border-radius:6px; margin-bottom:8px; font-weight:600;">' +
+        '✓ Hora ' + hora + ' DISPONIBLE para esta fecha' +
+        '</div>';
+    }
+
+    if (ocupadas.length === 0) {
+      contEl.innerHTML = bannerChoque +
+        '<div style="color:#166534;">Sin citas previas para esta fecha. Toda la jornada está disponible.</div>';
+      return;
+    }
+
+    var listaHtml = ocupadas.map(function(c){
+      var estCol = c.estado === 'REALIZADA' ? '#059669' : '#1d4ed8';
+      return '<div style="display:flex; gap:8px; align-items:center; padding:4px 0; border-bottom:1px dashed var(--pa-gray-200);">' +
+        '<span style="display:inline-block; min-width:48px; padding:2px 8px; border-radius:6px; background:' + estCol + '; color:#fff; font-weight:700; font-size:11px; text-align:center;">' + (c.hora||'—') + '</span>' +
+        '<span style="flex:1;">' + (c.nombre||'—') + ' · <span style="color:var(--pa-gray-600);">' + (c.actividad||'') + '</span></span>' +
+        '<span style="font-size:10px; color:var(--pa-gray-500);">' + c.estado + '</span>' +
+      '</div>';
+    }).join('');
+
+    contEl.innerHTML = bannerChoque +
+      '<div style="font-weight:600; color:var(--pa-navy-700); margin-bottom:4px;">Horas ya agendadas (' + ocupadas.length + '):</div>' +
+      listaHtml;
+  };
+
   window.saaDacionAgendar = function() {
     if (!dacionPaciente) { alert('Seleccione o registre un paciente primero.'); return; }
     if (!dacionPaciente.nombre) { alert('Falta el nombre del paciente.'); return; }
@@ -12462,6 +12535,29 @@ window.addEventListener('appinstalled', function() {
     if (!prof)  { alert('Seleccione profesional.'); return; }
     if (!fecha) { alert('Indique fecha.'); return; }
     if (!hora)  { alert('Indique hora.'); return; }
+
+    // Validación de disponibilidad: ¿el profesional ya tiene una cita activa en esa fecha y hora?
+    var conflicto = (SAA.citas || []).find(function(c){
+      return c.profesionalRut === prof
+          && c.fecha === fecha
+          && c.hora === hora
+          && c.estado !== 'CANCELADA'
+          && c.estado !== 'NSP'
+          && c.estado !== 'AUSENTE'
+          && c.estado !== 'REAGENDAR';
+    });
+    if (conflicto) {
+      var staffConf = getStaffByRut(prof);
+      var nombreProf = staffConf ? staffConf.nombre : prof;
+      alert('⛔ Conflicto de horario\n\n' +
+            nombreProf + ' ya tiene una cita agendada el ' +
+            fmtFecha(fecha) + ' a las ' + hora + ' hrs:\n\n' +
+            '• ' + conflicto.nombre + '\n' +
+            '• ' + conflicto.actividad + '\n' +
+            '• Estado: ' + conflicto.estado + '\n\n' +
+            'Por favor seleccione otro horario.');
+      return;
+    }
 
     var staff = getStaffByRut(prof);
     var cita = {
@@ -12531,23 +12627,132 @@ window.addEventListener('appinstalled', function() {
         SAA.chats[cita.rut].updated = new Date().toISOString();
         saaChatSave();
 
-        // Abrir WhatsApp con el mensaje precargado
+        // Intentar abrir WhatsApp con el mensaje precargado
         var telLimpio = saaChatFormatTel(telPaciente);
+        var waBloqueado = false;
+        var waUrl = '';
         if (telLimpio.length >= 11) {
-          var url = 'https://wa.me/' + telLimpio + '?text=' + encodeURIComponent(mensajeWa);
-          window.open(url, '_blank');
+          waUrl = 'https://wa.me/' + telLimpio + '?text=' + encodeURIComponent(mensajeWa);
+          try {
+            var nuevaVentana = window.open(waUrl, '_blank');
+            // Si el navegador / firewall bloquea, window.open devuelve null o una ventana que se cerró sola
+            if (!nuevaVentana || nuevaVentana.closed || typeof nuevaVentana.closed === 'undefined') {
+              waBloqueado = true;
+            } else {
+              // Verificar pasados unos ms si la ventana sigue abierta (algunos firewalls la cierran)
+              setTimeout(function(){
+                try { if (nuevaVentana.closed) { /* ya no podemos avisar aquí, pero queda registrado */ } } catch(e){}
+              }, 800);
+            }
+          } catch(e) {
+            waBloqueado = true;
+          }
+        } else {
+          waBloqueado = true; // teléfono inválido
         }
+        // Guardar el flag para mostrarlo en la confirmación final
+        window._saaUltimoWa = { bloqueado: waBloqueado, url: waUrl, mensaje: mensajeWa, telefono: telPaciente };
       }
     }
 
-    alert('✓ Hora agendada\n\n' +
+    // Construir mensaje de confirmación final
+    var mensajeFinal = '✓ Hora agendada\n\n' +
       cita.nombre + '\n' +
       cita.actividad + '\n' +
       fmtFecha(cita.fecha) + ' · ' + cita.hora + ' hrs\n' +
-      'Con ' + cita.profesionalNombre +
-      (wa ? '\n\n💬 WhatsApp enviado al paciente.' : ''));
+      'Con ' + cita.profesionalNombre;
+
+    if (wa) {
+      var ultimo = window._saaUltimoWa || {};
+      if (ultimo.bloqueado) {
+        mensajeFinal += '\n\n⚠️ WhatsApp no se pudo abrir automáticamente\n' +
+                        '(probablemente bloqueado por el firewall del hospital).\n\n' +
+                        'La cita SÍ quedó guardada. Por favor abre WhatsApp\n' +
+                        'manualmente desde tu teléfono y envía el mensaje.';
+        // Mostrar también un panel persistente con el mensaje para copiar
+        saaMostrarPanelWaBloqueado(ultimo.telefono, ultimo.mensaje, ultimo.url);
+      } else {
+        mensajeFinal += '\n\n💬 WhatsApp abierto en otra pestaña.';
+      }
+    }
+
+    alert(mensajeFinal);
     saaDacionLimpiar();
   };
+
+  // Muestra un panel flotante con el mensaje de WhatsApp para que el usuario lo copie
+  // cuando el firewall bloqueó la apertura automática
+  window.saaMostrarPanelWaBloqueado = function(telefono, mensaje, url) {
+    // Eliminar panel anterior si existe
+    var anterior = document.getElementById('saaWaBloqueadoPanel');
+    if (anterior) anterior.remove();
+
+    var panel = document.createElement('div');
+    panel.id = 'saaWaBloqueadoPanel';
+    panel.style.cssText = 'position:fixed; bottom:20px; right:20px; width:380px; max-width:calc(100vw - 40px); ' +
+      'background:#fff; border:2px solid #dc2626; border-radius:12px; padding:16px; ' +
+      'box-shadow:0 10px 40px rgba(0,0,0,0.3); z-index:99999; font-family:inherit;';
+
+    var telTxt = telefono ? '📞 ' + telefono : '(sin teléfono)';
+    var msgEsc = (mensaje||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+    panel.innerHTML =
+      '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">' +
+        '<strong style="color:#dc2626; font-size:14px;">⚠️ WhatsApp bloqueado por firewall</strong>' +
+        '<button onclick="document.getElementById(\'saaWaBloqueadoPanel\').remove()" ' +
+                'style="background:none; border:none; font-size:18px; cursor:pointer; color:#666;">✕</button>' +
+      '</div>' +
+      '<div style="font-size:12px; color:#374151; margin-bottom:10px;">' +
+        'Envía este mensaje manualmente desde tu teléfono:' +
+      '</div>' +
+      '<div style="background:#f3f4f6; padding:10px; border-radius:6px; font-size:12px; color:#111827; margin-bottom:10px;">' +
+        '<div style="font-weight:600; margin-bottom:6px;">' + telTxt + '</div>' +
+        '<div style="white-space:pre-wrap;" id="saaWaBloqueadoTexto">' + msgEsc + '</div>' +
+      '</div>' +
+      '<div style="display:flex; gap:8px;">' +
+        '<button onclick="saaCopiarMensajeWa()" ' +
+                'style="flex:1; background:#1565c0; color:#fff; border:none; padding:8px 12px; ' +
+                'border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">' +
+          '📋 Copiar mensaje' +
+        '</button>' +
+        '<button onclick="window.open(\'' + url.replace(/'/g, "\\'") + '\',\'_blank\')" ' +
+                'style="flex:1; background:#25d366; color:#fff; border:none; padding:8px 12px; ' +
+                'border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">' +
+          '🔁 Reintentar WhatsApp' +
+        '</button>' +
+      '</div>';
+
+    document.body.appendChild(panel);
+  };
+
+  // Copia el mensaje del panel al portapapeles
+  window.saaCopiarMensajeWa = function() {
+    var el = document.getElementById('saaWaBloqueadoTexto');
+    if (!el) return;
+    var texto = el.textContent || '';
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(texto).then(function(){
+        alert('✓ Mensaje copiado al portapapeles');
+      }).catch(function(){
+        saaCopiarMensajeWaFallback(texto);
+      });
+    } else {
+      saaCopiarMensajeWaFallback(texto);
+    }
+  };
+
+  // Fallback antiguo para navegadores que bloquean clipboard API
+  function saaCopiarMensajeWaFallback(texto) {
+    var ta = document.createElement('textarea');
+    ta.value = texto;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); alert('✓ Mensaje copiado al portapapeles'); }
+    catch(e) { alert('No se pudo copiar automáticamente. Selecciónalo manualmente.'); }
+    document.body.removeChild(ta);
+  }
 
   window.saaDacionLimpiar = function() {
     dacionPaciente = null;
@@ -12628,6 +12833,9 @@ window.addEventListener('appinstalled', function() {
     }
     // Aplicar overrides sobre las citas históricas adaptadas
     var ov = SAA.citasHistoricasOverride || {};
+    // Primero filtrar las que fueron marcadas como eliminadas
+    adaptadas = adaptadas.filter(function(c){ return !(ov[c.id] && ov[c.id].eliminada); });
+    // Luego aplicar cambios de estado
     adaptadas.forEach(function(c){
       if (ov[c.id] && ov[c.id].estado) {
         c.estado = ov[c.id].estado;
@@ -12792,15 +13000,32 @@ window.addEventListener('appinstalled', function() {
           : '';
         var estadoCls = {'AGENDADA':'info', 'REALIZADA':'ok', 'NSP':'crit', 'CANCELADA':'warn', 'AUSENTE':'crit', 'REAGENDAR':'amber'}[c.estado] || 'info';
         var estadoTxt = {'REAGENDAR':'REAGENDAR / LISTA ESPERA'}[c.estado] || c.estado;
-        var acciones = '';
+
+        // Estilo base que fuerza color blanco y peso para que el texto siempre se lea
+        var estiloBtn = 'color:#fff !important; font-weight:600; padding:6px 12px; border:none; border-radius:6px; font-size:12px; cursor:pointer; display:inline-flex; align-items:center; gap:4px;';
+
+        var acciones = '<div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">';
+
+        // Solo si está AGENDADA mostrar los 4 cambios de estado
         if (c.estado === 'AGENDADA') {
-          acciones = '<div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">' +
-            '<button class="saa-btn saa-btn-success saa-btn-sm" onclick="saaAgendaMarcar(\'' + c.id + '\',\'REALIZADA\'); saaCloseModal(\'saaModalDiaCitas\'); saaAgendaCalRender();">✓ Realizada</button>' +
-            '<button class="saa-btn saa-btn-danger saa-btn-sm" onclick="saaAgendaMarcar(\'' + c.id + '\',\'NSP\'); saaCloseModal(\'saaModalDiaCitas\'); saaAgendaCalRender();">✕ NSP</button>' +
-            '<button class="saa-btn saa-btn-danger saa-btn-sm" onclick="saaAgendaMarcar(\'' + c.id + '\',\'AUSENTE\'); saaCloseModal(\'saaModalDiaCitas\'); saaAgendaCalRender();" style="background:#dc2626;">🚫 Ausente</button>' +
-            '<button class="saa-btn saa-btn-sm" onclick="saaAgendaMarcar(\'' + c.id + '\',\'REAGENDAR\'); saaCloseModal(\'saaModalDiaCitas\'); saaAgendaCalRender();" style="background:#7c3aed; color:#fff;">🔄 Reagendar / L.Espera</button>' +
-          '</div>';
+          acciones +=
+            '<button onclick="saaAgendaMarcar(\'' + c.id + '\',\'REALIZADA\'); saaCloseModal(\'saaModalDiaCitas\'); saaAgendaCalRender();" ' +
+                    'style="' + estiloBtn + ' background:#059669;">✓ Realizada</button>' +
+            '<button onclick="saaAgendaMarcar(\'' + c.id + '\',\'NSP\'); saaCloseModal(\'saaModalDiaCitas\'); saaAgendaCalRender();" ' +
+                    'style="' + estiloBtn + ' background:#6b7280;">✕ NSP</button>' +
+            '<button onclick="saaAgendaMarcar(\'' + c.id + '\',\'AUSENTE\'); saaCloseModal(\'saaModalDiaCitas\'); saaAgendaCalRender();" ' +
+                    'style="' + estiloBtn + ' background:#dc2626;">⊘ Ausente</button>' +
+            '<button onclick="saaAgendaMarcar(\'' + c.id + '\',\'REAGENDAR\'); saaCloseModal(\'saaModalDiaCitas\'); saaAgendaCalRender();" ' +
+                    'style="' + estiloBtn + ' background:#7c3aed;">↻ Reagendar / L. Espera</button>';
         }
+
+        // Botón Eliminar SIEMPRE disponible (cualquier estado, incluso histórico)
+        acciones +=
+          '<button onclick="saaAgendaEliminar(\'' + c.id + '\')" ' +
+                  'style="' + estiloBtn + ' background:#991b1b; margin-left:auto;" title="Eliminar la cita del sistema">🗑 Eliminar</button>';
+
+        acciones += '</div>';
+
         return '<div class="saa-modal-dia-item">' +
           '<div class="saa-modal-dia-time ' + modCls + '">' + (c.hora || '—') + '</div>' +
           '<div class="saa-modal-dia-info">' +
@@ -12836,8 +13061,50 @@ window.addEventListener('appinstalled', function() {
       if (!SAA.citasHistoricasOverride) SAA.citasHistoricasOverride = {};
       SAA.citasHistoricasOverride[id] = { estado: estado, modificadaEn: new Date().toISOString() };
       try { localStorage.setItem('saa_citas_hist_override', JSON.stringify(SAA.citasHistoricasOverride)); } catch(e){}
+      // Sincronizar también a Railway para que todos los dispositivos vean el cambio
+      if (typeof apiSave === 'function') {
+        try { apiSave('saa_citas_hist_override', SAA.citasHistoricasOverride); } catch(e){}
+      }
       if (window.saaAgendaCalRender) saaAgendaCalRender();
     }
+  };
+
+  // Elimina por completo una cita (nueva o histórica) del sistema y sincroniza a Railway
+  window.saaAgendaEliminar = function(id) {
+    if (!id) return;
+    // Buscar datos de la cita para mostrar confirmación
+    var c = saaAgendaCitasUnidas().find(function(x){ return x.id === id; });
+    if (!c) { alert('No se encontró la cita.'); return; }
+
+    var confirma = confirm('⚠️ Eliminar cita\n\n' +
+      'Paciente: ' + (c.nombre || '—') + '\n' +
+      'Fecha: ' + fmtFecha(c.fecha) + ' · ' + (c.hora || '') + ' hrs\n' +
+      'Profesional: ' + (c.profesionalNombre || '—') + '\n\n' +
+      'Esta acción ELIMINARÁ la cita del sistema para todos los usuarios.\n' +
+      'No se puede deshacer.\n\n¿Confirmas?');
+    if (!confirma) return;
+
+    if (id.indexOf('old_') === 0) {
+      // Cita histórica: la "eliminamos" guardando un marcador especial en el override
+      // (no podemos borrarla de agendaData porque eso afectaría a otros procesos del sistema)
+      if (!SAA.citasHistoricasOverride) SAA.citasHistoricasOverride = {};
+      SAA.citasHistoricasOverride[id] = { eliminada: true, modificadaEn: new Date().toISOString() };
+      try { localStorage.setItem('saa_citas_hist_override', JSON.stringify(SAA.citasHistoricasOverride)); } catch(e){}
+      if (typeof apiSave === 'function') {
+        try { apiSave('saa_citas_hist_override', SAA.citasHistoricasOverride); } catch(e){}
+      }
+    } else {
+      // Cita nueva: la removemos directamente de SAA.citas
+      var idx = (SAA.citas || []).findIndex(function(x){ return x.id === id; });
+      if (idx >= 0) {
+        SAA.citas.splice(idx, 1);
+        saaSave('citas'); // ya sincroniza a Railway via apiSave
+      }
+    }
+
+    if (window.saaCloseModal) saaCloseModal('saaModalDiaCitas');
+    if (window.saaAgendaCalRender) saaAgendaCalRender();
+    alert('✓ Cita eliminada del sistema.');
   };
 
   window.saaAgendaLimpiarFiltros = function() {
