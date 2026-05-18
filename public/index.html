@@ -4255,6 +4255,8 @@ body.has-shell .back-btn { display: none !important; }
                 <option value="PACTO">PACTO</option>
                 <option value="BV">Baja Visión</option>
                 <option value="SM_BV">SM Baja Visión</option>
+                <option value="PACTO_SM">PACTO Salud Mental</option>
+                <option value="PACTO_OFT">PACTO Oftalmología</option>
                 <option value="PACTO_SOMAT">PACTO Somatoprotesista</option>
               </select>
             </div>
@@ -4386,13 +4388,21 @@ body.has-shell .back-btn { display: none !important; }
           <input class="saa-input" id="saaEsperaQ" placeholder="Ej: 12345678, GLAUCOMA, MARÍA…" oninput="saaEsperaRender()">
         </div>
         <div>
+          <label class="saa-label">Agrupación</label>
+          <select class="saa-select" id="saaEsperaAgrupFiltro" onchange="saaEsperaAgrupFiltroChange()">
+            <option value="">Todas</option>
+            <option value="PACTO">PACTO</option>
+            <option value="BV">Baja Visión</option>
+            <option value="SM_BV">SM Baja Visión</option>
+            <option value="PACTO_SM">PACTO Salud Mental</option>
+            <option value="PACTO_OFT">PACTO Oftalmología</option>
+            <option value="PACTO_SOMAT">PACTO Somatoprotesista</option>
+          </select>
+        </div>
+        <div>
           <label class="saa-label">Actividad</label>
           <select class="saa-select" id="saaEsperaAct" onchange="saaEsperaRender()">
             <option value="">Todas</option>
-            <option>OFTALMOLOGÍA</option>
-            <option>BAJA VISIÓN</option>
-            <option>SALUD MENTAL</option>
-            <option>PACTO</option>
           </select>
         </div>
         <div>
@@ -5192,22 +5202,33 @@ body.has-shell .back-btn { display: none !important; }
 
     <!-- ════════ MODALES SAA ════════ -->
     <div class="saa-modal-bg" id="saaModalEspera">
-      <div class="saa-modal">
+      <div class="saa-modal" style="max-width:700px;">
         <div class="saa-modal-head">
           <h3 id="saaEsperaModalTitle">+ Agregar a lista de espera</h3>
           <button class="saa-modal-close" onclick="saaCloseModal('saaModalEspera')">✕</button>
         </div>
         <div class="saa-modal-body">
-          <div class="saa-row">
-            <div>
-              <label class="saa-label">RUT *</label>
-              <input class="saa-input" id="saaEspMRut" placeholder="12345678-K">
+
+          <!-- ── PASO 1: Buscar paciente ── -->
+          <div style="background:#eff6ff; border-left:4px solid #1565c0; padding:14px 16px; border-radius:8px; margin-bottom:14px;">
+            <div style="font-size:11px; font-weight:700; color:#1e40af; letter-spacing:0.8px; text-transform:uppercase; margin-bottom:8px;">1. Buscar paciente</div>
+            <div class="saa-row" style="align-items:flex-end;">
+              <div style="flex:2;">
+                <label class="saa-label">RUT (sin puntos, con guión)</label>
+                <input class="saa-input" id="saaEspMRut" placeholder="12345678-9" onkeydown="if(event.key==='Enter'){event.preventDefault(); saaEsperaBuscarRut();}">
+              </div>
+              <div>
+                <button class="saa-btn saa-btn-primary" onclick="saaEsperaBuscarRut()" style="white-space:nowrap;">🔍 Buscar</button>
+              </div>
+              <div>
+                <button class="saa-btn saa-btn-ghost" onclick="saaEsperaModoManual()" style="white-space:nowrap;" title="Ingresar manualmente sin buscar">✏️ Manual</button>
+              </div>
             </div>
-            <div>
-              <label class="saa-label">Fecha ingreso</label>
-              <input class="saa-input" type="date" id="saaEspMFecha">
-            </div>
+            <div id="saaEspMBuscarResultado" style="margin-top:10px; font-size:12px;"></div>
           </div>
+
+          <!-- ── PASO 2: Datos del paciente (auto-llenado o manual) ── -->
+          <div style="font-size:11px; font-weight:700; color:#1e40af; letter-spacing:0.8px; text-transform:uppercase; margin-bottom:8px;">2. Datos del paciente</div>
           <label class="saa-label">Nombre completo *</label>
           <input class="saa-input" id="saaEspMNombre" placeholder="Nombres y apellidos">
           <div class="saa-row">
@@ -5220,26 +5241,85 @@ body.has-shell .back-btn { display: none !important; }
               <input class="saa-input" id="saaEspMComuna" placeholder="Ej: Concepción">
             </div>
             <div>
-              <label class="saa-label">Actividad *</label>
-              <select class="saa-select" id="saaEspMAct">
-                <option value="OFTALMOLOGÍA">OFTALMOLOGÍA</option>
-                <option value="BAJA VISIÓN">BAJA VISIÓN</option>
-                <option value="SALUD MENTAL">SALUD MENTAL</option>
+              <label class="saa-label">Teléfono</label>
+              <input class="saa-input" id="saaEspMTel" type="tel" placeholder="+56 9 1234 5678">
+            </div>
+          </div>
+
+          <!-- ── PASO 3: Detalles clínicos ── -->
+          <div style="font-size:11px; font-weight:700; color:#1e40af; letter-spacing:0.8px; text-transform:uppercase; margin:14px 0 8px;">3. Detalles clínicos</div>
+          <div class="saa-row">
+            <div>
+              <label class="saa-label">Fecha ingreso</label>
+              <input class="saa-input" type="date" id="saaEspMFecha">
+            </div>
+            <div>
+              <label class="saa-label">Agrupación *</label>
+              <select class="saa-select" id="saaEspMAgrup" onchange="saaEsperaAgrupChange()">
+                <option value="">— Seleccione —</option>
                 <option value="PACTO">PACTO</option>
+                <option value="BV">Baja Visión</option>
+                <option value="SM_BV">SM Baja Visión</option>
+                <option value="PACTO_SM">PACTO Salud Mental</option>
+                <option value="PACTO_OFT">PACTO Oftalmología</option>
+                <option value="PACTO_SOMAT">PACTO Somatoprotesista</option>
+              </select>
+            </div>
+            <div>
+              <label class="saa-label">Actividad *</label>
+              <select class="saa-select" id="saaEspMAct" disabled>
+                <option value="">— Seleccione agrupación —</option>
               </select>
             </div>
           </div>
-          <label class="saa-label">Diagnóstico</label>
-          <input class="saa-input" id="saaEspMDx" placeholder="Ej: Catarata bilateral">
-          <label class="saa-label">¿GES?</label>
-          <select class="saa-select" id="saaEspMGes">
-            <option value="no">No</option>
-            <option value="si">Sí — con garantías</option>
-          </select>
+          <div class="saa-row">
+            <div style="flex:2;">
+              <label class="saa-label">Diagnóstico</label>
+              <input class="saa-input" id="saaEspMDx" placeholder="Ej: Catarata bilateral">
+            </div>
+            <div>
+              <label class="saa-label">¿GES?</label>
+              <select class="saa-select" id="saaEspMGes">
+                <option value="no">No</option>
+                <option value="si">Sí — con garantías</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- ── PASO 4: Contacto telefónico ── -->
+          <div style="font-size:11px; font-weight:700; color:#1e40af; letter-spacing:0.8px; text-transform:uppercase; margin:14px 0 8px;">4. Contacto telefónico</div>
+          <div style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; padding:12px 14px;">
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:10px;">
+              <input type="checkbox" id="saaEspMLlamado" onchange="saaEsperaToggleLlamado()" style="width:18px; height:18px; cursor:pointer;">
+              <span style="font-weight:600; color:#1f2937;">📞 Se realizó llamado al paciente</span>
+            </label>
+            <div id="saaEspMRespuestaWrap" style="display:none; padding-left:26px;">
+              <label class="saa-label" style="margin-top:0;">Respuesta del paciente</label>
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <label style="flex:1; min-width:140px; display:flex; align-items:center; gap:6px; padding:8px 12px; border:2px solid #e5e7eb; border-radius:8px; cursor:pointer; background:#fff;">
+                  <input type="radio" name="saaEspMRespuesta" value="acepta" style="cursor:pointer;">
+                  <span style="font-size:13px;">✅ Acepta hora</span>
+                </label>
+                <label style="flex:1; min-width:140px; display:flex; align-items:center; gap:6px; padding:8px 12px; border:2px solid #e5e7eb; border-radius:8px; cursor:pointer; background:#fff;">
+                  <input type="radio" name="saaEspMRespuesta" value="rechaza" style="cursor:pointer;">
+                  <span style="font-size:13px;">❌ Rechaza hora</span>
+                </label>
+                <label style="flex:1; min-width:140px; display:flex; align-items:center; gap:6px; padding:8px 12px; border:2px solid #e5e7eb; border-radius:8px; cursor:pointer; background:#fff;">
+                  <input type="radio" name="saaEspMRespuesta" value="no_contesta" style="cursor:pointer;">
+                  <span style="font-size:13px;">📵 No contesta</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── PASO 5: Observaciones ── -->
+          <label class="saa-label" style="margin-top:14px;">📝 Observaciones</label>
+          <textarea class="saa-input" id="saaEspMObs" placeholder="Comentarios sobre el paciente, preferencias, restricciones, etc." style="min-height:70px; resize:vertical;"></textarea>
+
         </div>
         <div class="saa-modal-foot">
           <button class="saa-btn saa-btn-ghost" onclick="saaCloseModal('saaModalEspera')">Cancelar</button>
-          <button class="saa-btn saa-btn-primary" onclick="saaEsperaGuardar()">Guardar</button>
+          <button class="saa-btn saa-btn-primary" onclick="saaEsperaGuardar()">💾 Guardar</button>
         </div>
       </div>
     </div>
@@ -6433,7 +6513,7 @@ async function apiLoadAll() {
     devolucionData.historial = data.devolucionHistorial || [];
     // ── Nuevas keys SAA: copiar del servidor al localStorage ─────────
     // Los módulos SAA leen desde localStorage al inicializar (saaLoad)
-    var newKeys = ['saaCitas','saaEspera','saaWhatsapp','saaTele','saaDomi','saaRecetas','saaConsentTele','paCalEventos','saaChats','saaNumeroPacto','saa_citas_hist_override'];
+    var newKeys = ['saaCitas','saaEspera','saaWhatsapp','saaTele','saaDomi','saaRecetas','saaConsentTele','paCalEventos','saaChats','saaNumeroPacto','saa_citas_hist_override','saa_pacientes_override'];
     newKeys.forEach(function(k){
       if (data[k] !== undefined && data[k] !== null) {
         try {
@@ -12215,6 +12295,18 @@ window.addEventListener('appinstalled', function() {
       {agrup:'SM_BV',        act:'Psiquiatría',                   mod:'Presencial'},
       {agrup:'SM_BV',        act:'Terapia ocupacional',           mod:'Presencial'},
       {agrup:'SM_BV',        act:'Trabajo social',                mod:'Presencial'},
+      // PACTO Salud Mental
+      {agrup:'PACTO_SM',     act:'Psicología — primera sesión',   mod:'Presencial'},
+      {agrup:'PACTO_SM',     act:'Psicología — control',          mod:'Presencial'},
+      {agrup:'PACTO_SM',     act:'Psiquiatría',                   mod:'Presencial'},
+      {agrup:'PACTO_SM',     act:'Terapia ocupacional',           mod:'Presencial'},
+      {agrup:'PACTO_SM',     act:'Trabajo social',                mod:'Presencial'},
+      // PACTO Oftalmología
+      {agrup:'PACTO_OFT',    act:'Oftalmología general',          mod:'Presencial'},
+      {agrup:'PACTO_OFT',    act:'Retina',                        mod:'Presencial'},
+      {agrup:'PACTO_OFT',    act:'Glaucoma',                      mod:'Presencial'},
+      {agrup:'PACTO_OFT',    act:'Estrabismo',                    mod:'Presencial'},
+      {agrup:'PACTO_OFT',    act:'Uveítis',                       mod:'Presencial'},
       // PACTO Somatoprotesista
       {agrup:'PACTO_SOMAT',  act:'Rehabilitación: prótesis fija', mod:'Presencial'},
       {agrup:'PACTO_SOMAT',  act:'Rehabilitación: prótesis removible', mod:'Presencial'},
@@ -12292,6 +12384,7 @@ window.addEventListener('appinstalled', function() {
         prevision: hggb.p,
         origen:    'hggb'
       };
+      saaAplicarOverridePaciente(dacionPaciente);
       saaDacionRenderPaciente();
       return;
     }
@@ -12301,13 +12394,51 @@ window.addEventListener('appinstalled', function() {
     if (local) {
       dacionPaciente = local;
       dacionPaciente.origen = 'local';
+      saaAplicarOverridePaciente(dacionPaciente);
       saaDacionRenderPaciente();
       return;
     }
 
     // 3. No encontrado: crear ficha en blanco para que el usuario complete
     dacionPaciente = { rut: rutFmt, nombre: '', edad: '', comuna: '', nuevo: true, origen: 'nuevo' };
+    saaAplicarOverridePaciente(dacionPaciente);
     saaDacionRenderPaciente();
+  };
+
+  // Aplica los overrides guardados (teléfono u otros campos editados manualmente) sobre un paciente
+  function saaAplicarOverridePaciente(p) {
+    if (!p || !p.rut) return;
+    // Cargar overrides desde memoria o localStorage
+    if (!SAA.pacientesOverride) {
+      try {
+        var raw = localStorage.getItem('saa_pacientes_override');
+        SAA.pacientesOverride = raw ? JSON.parse(raw) : {};
+      } catch(e) { SAA.pacientesOverride = {}; }
+    }
+    var ov = SAA.pacientesOverride[p.rut];
+    if (!ov) return;
+    // Aplicar cada campo del override que tenga valor definido
+    if (ov.telefono !== undefined) p.telefono = ov.telefono;
+    if (ov.direccion !== undefined) p.direccion = ov.direccion;
+    if (ov.comuna !== undefined) p.comuna = ov.comuna;
+  }
+
+  // Guarda un cambio de campo en el override del paciente y lo sincroniza a Railway
+  window.saaGuardarOverridePaciente = function(rut, campo, valor) {
+    if (!rut || !campo) return;
+    if (!SAA.pacientesOverride) {
+      try {
+        var raw = localStorage.getItem('saa_pacientes_override');
+        SAA.pacientesOverride = raw ? JSON.parse(raw) : {};
+      } catch(e) { SAA.pacientesOverride = {}; }
+    }
+    if (!SAA.pacientesOverride[rut]) SAA.pacientesOverride[rut] = {};
+    SAA.pacientesOverride[rut][campo] = valor;
+    SAA.pacientesOverride[rut].modificadoEn = new Date().toISOString();
+    try { localStorage.setItem('saa_pacientes_override', JSON.stringify(SAA.pacientesOverride)); } catch(e){}
+    if (typeof apiSave === 'function') {
+      try { apiSave('saa_pacientes_override', SAA.pacientesOverride); } catch(e){}
+    }
   };
 
   function saaPacienteEnBaseLocal(rutFmt) {
@@ -12507,8 +12638,13 @@ window.addEventListener('appinstalled', function() {
     var anterior = dacionPaciente.telefono || '';
     dacionPaciente.telefono = nuevo;
 
-    // Si el paciente está registrado localmente (no es de la base HGGB ni nuevo sin registrar),
-    // persistimos el cambio en SAA.pacientes para que dure entre sesiones
+    // Persistencia universal: guardar en el sistema de overrides
+    // (funciona para pacientes HGGB, locales y nuevos por igual, sincroniza a Railway)
+    if (typeof saaGuardarOverridePaciente === 'function') {
+      saaGuardarOverridePaciente(dacionPaciente.rut, 'telefono', nuevo);
+    }
+
+    // Si el paciente también está en SAA.pacientes local, actualizarlo allí
     if (window.SAA && Array.isArray(SAA.pacientes)) {
       var pac = SAA.pacientes.find(function(x){ return x.rut === dacionPaciente.rut; });
       if (pac) {
@@ -13112,65 +13248,355 @@ window.addEventListener('appinstalled', function() {
     var meses2 = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
     var titulo = diasSem[fecha.getDay()] + ' ' + fecha.getDate() + ' de ' + meses2[fecha.getMonth()] + ' ' + fecha.getFullYear();
 
-    document.getElementById('saaModalDiaTitle').textContent = '📅 ' + titulo;
+    document.getElementById('saaModalDiaTitle').textContent = '📅 Citas del ' + titulo;
 
     var body = document.getElementById('saaModalDiaBody');
     if (citas.length === 0) {
-      body.innerHTML = '<div style="text-align:center; padding:30px; color:var(--pa-gray-600); font-size:13px;"><div style="font-size:40px; opacity:0.3; margin-bottom:8px;">📅</div>Sin citas programadas para este día</div>';
-    } else {
-      body.innerHTML = '<div style="font-size:12px; color:var(--pa-gray-600); margin-bottom:10px;">' + citas.length + ' cita' + (citas.length===1?'':'s') + ' programada' + (citas.length===1?'':'s') + '</div>' +
-      citas.map(function(c){
-        var modCls = c.modalidad === 'Telemedicina' ? 'tele' : (c.modalidad === 'Domiciliaria' ? 'domi' : '');
-        var modIcon = {'Presencial':'🩺','Telemedicina':'📡','Domiciliaria':'🏠'}[c.modalidad] || '·';
-        var histBadge = c._origen === 'historico'
-          ? ' <span style="display:inline-block; background:var(--pa-gray-200); color:var(--pa-gray-700); padding:1px 6px; border-radius:999px; font-size:9px; font-weight:700; letter-spacing:0.5px;">📂 HIST</span>'
-          : '';
-        var estadoCls = {'AGENDADA':'info', 'REALIZADA':'ok', 'NSP':'crit', 'CANCELADA':'warn', 'AUSENTE':'crit', 'REAGENDAR':'amber'}[c.estado] || 'info';
-        var estadoTxt = {'REAGENDAR':'REAGENDAR / LISTA ESPERA'}[c.estado] || c.estado;
-
-        // Estilo base que fuerza color blanco y peso para que el texto siempre se lea
-        var estiloBtn = 'color:#fff !important; font-weight:600; padding:6px 12px; border:none; border-radius:6px; font-size:12px; cursor:pointer; display:inline-flex; align-items:center; gap:4px;';
-
-        var acciones = '<div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">';
-
-        // Solo si está AGENDADA mostrar los 4 cambios de estado
-        if (c.estado === 'AGENDADA') {
-          acciones +=
-            '<button onclick="saaAgendaMarcar(\'' + c.id + '\',\'REALIZADA\'); saaCloseModal(\'saaModalDiaCitas\'); saaAgendaCalRender();" ' +
-                    'style="' + estiloBtn + ' background:#059669;">✓ Realizada</button>' +
-            '<button onclick="saaAgendaMarcar(\'' + c.id + '\',\'NSP\'); saaCloseModal(\'saaModalDiaCitas\'); saaAgendaCalRender();" ' +
-                    'style="' + estiloBtn + ' background:#6b7280;">✕ NSP</button>' +
-            '<button onclick="saaAgendaMarcar(\'' + c.id + '\',\'AUSENTE\'); saaCloseModal(\'saaModalDiaCitas\'); saaAgendaCalRender();" ' +
-                    'style="' + estiloBtn + ' background:#dc2626;">⊘ Ausente</button>' +
-            '<button onclick="saaAgendaMarcar(\'' + c.id + '\',\'REAGENDAR\'); saaCloseModal(\'saaModalDiaCitas\'); saaAgendaCalRender();" ' +
-                    'style="' + estiloBtn + ' background:#7c3aed;">↻ Reagendar / L. Espera</button>';
-        }
-
-        // Botón Eliminar SIEMPRE disponible (cualquier estado, incluso histórico)
-        acciones +=
-          '<button onclick="saaAgendaEliminar(\'' + c.id + '\')" ' +
-                  'style="' + estiloBtn + ' background:#991b1b; margin-left:auto;" title="Eliminar la cita del sistema">🗑 Eliminar</button>';
-
-        acciones += '</div>';
-
-        return '<div class="saa-modal-dia-item">' +
-          '<div class="saa-modal-dia-time ' + modCls + '">' + (c.hora || '—') + '</div>' +
-          '<div class="saa-modal-dia-info">' +
-            '<strong>' + (c.nombre || '(sin nombre)') + histBadge + '</strong>' +
-            '<div class="meta">' +
-              'RUT: ' + (c.rut || '—') + (c.edad ? ' · ' + c.edad + ' años' : '') + '<br>' +
-              modIcon + ' ' + c.modalidad + ' · ' + c.actividad + '<br>' +
-              '👤 ' + c.profesionalNombre +
-              (c.telefono ? '<br>📞 ' + c.telefono : '') +
-              '<br><span class="saa-badge ' + estadoCls + '" style="margin-top:4px;">' + estadoTxt + '</span>' +
-            '</div>' +
-            acciones +
-          '</div>' +
+      body.innerHTML =
+        '<div style="text-align:center; padding:40px 20px; color:var(--pa-gray-600);">' +
+          '<div style="font-size:48px; opacity:0.3; margin-bottom:12px;">📅</div>' +
+          '<strong style="display:block; font-size:14px; margin-bottom:4px;">Sin citas para este día</strong>' +
+          '<span style="font-size:12px;">Aún no hay atenciones programadas.</span>' +
         '</div>';
-      }).join('');
+      saaOpenModal('saaModalDiaCitas');
+      return;
     }
 
+    // Tabla clínica limpia: Hora · Paciente · Tipo · Motivo · Estado
+    // Cada fila es clickeable y abre la ficha del paciente con las acciones
+    var filasHtml = citas.map(function(c, idx){
+      var modBadge = '';
+      if (c.modalidad === 'Telemedicina') {
+        modBadge = '<span style="display:inline-block; background:#dbeafe; color:#1e40af; padding:4px 10px; border-radius:999px; font-size:11px; font-weight:700; letter-spacing:0.5px;">TELECONSULTA</span>';
+      } else if (c.modalidad === 'Domiciliaria') {
+        modBadge = '<span style="display:inline-block; background:#fef3c7; color:#92400e; padding:4px 10px; border-radius:999px; font-size:11px; font-weight:700; letter-spacing:0.5px;">DOMICILIO</span>';
+      } else {
+        modBadge = '<span style="display:inline-block; background:#e0e7ff; color:#3730a3; padding:4px 10px; border-radius:999px; font-size:11px; font-weight:700; letter-spacing:0.5px;">PRESENCIAL</span>';
+      }
+
+      var estadoBadge = '';
+      var estadoStyle = '';
+      if (c.estado === 'AGENDADA')       estadoStyle = 'background:#dbeafe; color:#1e40af;';
+      else if (c.estado === 'REALIZADA') estadoStyle = 'background:#dcfce7; color:#166534;';
+      else if (c.estado === 'NSP')       estadoStyle = 'background:#f3f4f6; color:#374151; text-decoration:line-through;';
+      else if (c.estado === 'AUSENTE')   estadoStyle = 'background:#fee2e2; color:#991b1b;';
+      else if (c.estado === 'REAGENDAR') estadoStyle = 'background:#ede9fe; color:#5b21b6;';
+      else if (c.estado === 'CANCELADA') estadoStyle = 'background:#fef3c7; color:#854f0b;';
+      else                                estadoStyle = 'background:#e5e7eb; color:#374151;';
+      var estadoTxt = c.estado === 'REAGENDAR' ? 'REAGENDAR' : c.estado;
+      estadoBadge = '<span style="display:inline-block; padding:4px 10px; border-radius:999px; font-size:11px; font-weight:700; letter-spacing:0.5px;' + estadoStyle + '">' + estadoTxt + '</span>';
+
+      var histBadge = c._origen === 'historico'
+        ? ' <span style="display:inline-block; background:#e5e7eb; color:#4b5563; padding:1px 5px; border-radius:999px; font-size:9px; font-weight:700; letter-spacing:0.5px; vertical-align:middle;">HIST</span>'
+        : '';
+
+      // Codificación segura del id para pasarlo por onclick
+      var idSafe = String(c.id).replace(/'/g, "\\'");
+
+      return '<tr style="cursor:pointer; transition:background 0.15s;" ' +
+                'onmouseover="this.style.background=\'#f9fafb\';" ' +
+                'onmouseout="this.style.background=\'\';" ' +
+                'onclick="saaAgendaVerFichaPaciente(\'' + idSafe + '\')">' +
+        '<td style="padding:14px 16px; border-bottom:1px solid #f3f4f6; font-weight:700; color:#0f172a; font-size:13px;">' + (c.hora || '—') + '</td>' +
+        '<td style="padding:14px 16px; border-bottom:1px solid #f3f4f6; color:#1f2937; font-size:13px;">' + (c.nombre || '(sin nombre)') + histBadge + '</td>' +
+        '<td style="padding:14px 16px; border-bottom:1px solid #f3f4f6;">' + modBadge + '</td>' +
+        '<td style="padding:14px 16px; border-bottom:1px solid #f3f4f6; color:#4b5563; font-size:13px;">' + (c.motivo || c.actividad || '—') + '</td>' +
+        '<td style="padding:14px 16px; border-bottom:1px solid #f3f4f6;">' + estadoBadge + '</td>' +
+      '</tr>';
+    }).join('');
+
+    body.innerHTML =
+      '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">' +
+        '<div style="font-size:12px; color:#6b7280;">' +
+          '<strong style="color:#1f2937;">' + citas.length + '</strong> cita' + (citas.length===1?'':'s') + ' programada' + (citas.length===1?'':'s') +
+        '</div>' +
+      '</div>' +
+      '<div style="border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; background:#fff;">' +
+        '<table style="width:100%; border-collapse:collapse;">' +
+          '<thead>' +
+            '<tr style="background:#0d47a1;">' +
+              '<th style="padding:12px 16px; text-align:left; color:#fff; font-size:11px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase;">Hora</th>' +
+              '<th style="padding:12px 16px; text-align:left; color:#fff; font-size:11px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase;">Paciente</th>' +
+              '<th style="padding:12px 16px; text-align:left; color:#fff; font-size:11px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase;">Tipo</th>' +
+              '<th style="padding:12px 16px; text-align:left; color:#fff; font-size:11px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase;">Motivo</th>' +
+              '<th style="padding:12px 16px; text-align:left; color:#fff; font-size:11px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase;">Estado</th>' +
+            '</tr>' +
+          '</thead>' +
+          '<tbody>' + filasHtml + '</tbody>' +
+        '</table>' +
+      '</div>' +
+      '<div style="margin-top:12px; font-size:11px; color:#6b7280; text-align:center; font-style:italic;">' +
+        '💡 Haz clic en cualquier paciente para ver su ficha y gestionar la cita' +
+      '</div>';
+
     saaOpenModal('saaModalDiaCitas');
+  };
+
+  // ─── Ficha clínica del paciente ───
+  // Modal grande con pestañas Resumen + Historia clínica + acciones de la cita
+  window.saaAgendaVerFichaPaciente = function(citaId) {
+    var cita = saaAgendaCitasUnidas().find(function(x){ return x.id === citaId; });
+    if (!cita) { alert('No se encontró la cita.'); return; }
+
+    // Cargar datos extra del paciente desde la base HGGB (si está disponible)
+    var pacienteExtra = null;
+    if (cita.rut && window.HGGB_PAC_ready && typeof window.hggbBuscarPorRut === 'function') {
+      try { pacienteExtra = window.hggbBuscarPorRut(cita.rut); } catch(e){}
+    }
+
+    // Aplicar overrides del paciente (teléfono editado, etc.)
+    var datosPaciente = {
+      rut: cita.rut || '',
+      nombre: cita.nombre || (pacienteExtra ? pacienteExtra.n : ''),
+      edad: cita.edad || (pacienteExtra ? pacienteExtra.e : ''),
+      sexo: (pacienteExtra ? pacienteExtra.s : ''),
+      comuna: cita.comuna || (pacienteExtra ? pacienteExtra.c : ''),
+      direccion: cita.direccion || (pacienteExtra ? pacienteExtra.d : ''),
+      telefono: cita.telefono || (pacienteExtra ? pacienteExtra.t : ''),
+      prevision: (pacienteExtra ? pacienteExtra.p : '')
+    };
+    if (typeof saaAplicarOverridePaciente === 'function') {
+      saaAplicarOverridePaciente(datosPaciente);
+    }
+
+    // Buscar historia clínica: todas las citas pasadas del mismo paciente, ordenadas desc
+    var hoy = new Date(); hoy.setHours(0,0,0,0);
+    var historia = saaAgendaCitasUnidas()
+      .filter(function(c){ return c.rut === cita.rut && c.id !== cita.id; })
+      .sort(function(a,b){
+        var fa = (a.fecha||'') + ' ' + (a.hora||'');
+        var fb = (b.fecha||'') + ' ' + (b.hora||'');
+        return fa < fb ? 1 : -1;  // desc
+      });
+    var totalEncuentros = historia.filter(function(c){ return c.estado === 'REALIZADA'; }).length;
+
+    saaRenderFichaPaciente(cita, datosPaciente, historia, totalEncuentros, 'resumen');
+    saaOpenModal('saaModalFichaPaciente');
+  };
+
+  // Renderiza el contenido de la ficha del paciente según la pestaña activa
+  window.saaRenderFichaPaciente = function(cita, paciente, historia, totalEncuentros, pestaña) {
+    var modal = document.getElementById('saaModalFichaPaciente');
+    if (!modal) {
+      // Crear el modal una sola vez
+      modal = document.createElement('div');
+      modal.id = 'saaModalFichaPaciente';
+      modal.className = 'saa-modal';
+      modal.style.cssText = 'display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:99998; align-items:flex-start; justify-content:center; padding:40px 20px; overflow-y:auto;';
+      modal.innerHTML = '<div id="saaModalFichaPacienteInner" style="background:#fff; border-radius:16px; max-width:780px; width:100%; max-height:calc(100vh - 80px); overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,0.4);"></div>';
+      // Cerrar haciendo clic fuera
+      modal.addEventListener('click', function(e){
+        if (e.target === modal) saaCloseModal('saaModalFichaPaciente');
+      });
+      document.body.appendChild(modal);
+    }
+
+    var inner = modal.querySelector('#saaModalFichaPacienteInner');
+
+    // Iniciales para el avatar
+    var iniciales = '?';
+    if (paciente.nombre) {
+      var partes = paciente.nombre.split(' ').filter(function(x){ return x; });
+      if (partes.length >= 2) iniciales = (partes[0].charAt(0) + partes[partes.length-1].charAt(0)).toUpperCase();
+      else if (partes[0]) iniciales = partes[0].substring(0,2).toUpperCase();
+    }
+
+    var sexoTxt = paciente.sexo === 'F' ? '♀ Femenino' : (paciente.sexo === 'M' ? '♂ Masculino' : '—');
+    var pacienteJson = JSON.stringify({cita:cita, paciente:paciente, historia:historia, totalEncuentros:totalEncuentros}).replace(/'/g, "\\'");
+
+    // Header con datos del paciente
+    var header =
+      '<div style="background:linear-gradient(135deg, #0d47a1 0%, #1565c0 100%); padding:24px; border-radius:16px 16px 0 0; color:#fff; position:relative;">' +
+        '<button onclick="saaCloseModal(\'saaModalFichaPaciente\')" ' +
+                'style="position:absolute; top:16px; right:16px; background:rgba(255,255,255,0.2); border:none; color:#fff; width:32px; height:32px; border-radius:50%; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center;">✕</button>' +
+        '<div style="display:flex; gap:16px; align-items:flex-start;">' +
+          '<div style="width:64px; height:64px; background:#f59e0b; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:700; color:#fff; flex-shrink:0;">' +
+            iniciales +
+          '</div>' +
+          '<div style="flex:1; min-width:0;">' +
+            '<div style="font-size:20px; font-weight:700; margin-bottom:4px;">' + (paciente.nombre || '(sin nombre)') + '</div>' +
+            '<div style="font-size:12px; opacity:0.9; line-height:1.6;">' +
+              (paciente.rut || '—') +
+              (paciente.edad ? ' · ' + paciente.edad + ' años' : '') +
+              ' · ' + sexoTxt +
+              (paciente.comuna ? ' · 📍 ' + paciente.comuna : '') +
+              (paciente.prevision ? ' · 💳 ' + paciente.prevision : '') +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    // Pestañas
+    var tabRes = pestaña === 'resumen' ? 'border-bottom:3px solid #1565c0; color:#1565c0; font-weight:700;' : 'color:#6b7280;';
+    var tabHis = pestaña === 'historia' ? 'border-bottom:3px solid #1565c0; color:#1565c0; font-weight:700;' : 'color:#6b7280;';
+    var tabs =
+      '<div style="display:flex; gap:0; border-bottom:1px solid #e5e7eb; padding:0 24px;">' +
+        '<button onclick="saaRenderFichaPaciente(' + "'__use_last__'" + ', null, null, null, \'resumen\')" ' +
+                'style="background:none; border:none; padding:14px 16px; font-size:13px; cursor:pointer; ' + tabRes + ' transition:all 0.15s;">' +
+          '📋 Resumen' +
+        '</button>' +
+        '<button onclick="saaRenderFichaPaciente(' + "'__use_last__'" + ', null, null, null, \'historia\')" ' +
+                'style="background:none; border:none; padding:14px 16px; font-size:13px; cursor:pointer; ' + tabHis + ' transition:all 0.15s;">' +
+          '📚 Historia clínica' +
+          (historia.length > 0 ? '<span style="display:inline-block; background:#1565c0; color:#fff; font-size:10px; padding:2px 7px; border-radius:999px; margin-left:6px;">' + historia.length + '</span>' : '') +
+        '</button>' +
+      '</div>';
+
+    // Guardar el contexto para que las pestañas puedan re-renderizar
+    window._saaFichaCtx = {cita:cita, paciente:paciente, historia:historia, totalEncuentros:totalEncuentros};
+
+    // Contenido según pestaña
+    var contenido = '';
+    if (pestaña === 'resumen') {
+      contenido = saaFichaTabResumen(cita, paciente, totalEncuentros);
+    } else {
+      contenido = saaFichaTabHistoria(historia);
+    }
+
+    // Acciones de la cita actual al final
+    var acciones = saaFichaAccionesCita(cita);
+
+    inner.innerHTML = header + tabs + '<div style="padding:24px;">' + contenido + '</div>' + acciones;
+  };
+
+  // Pestaña Resumen
+  function saaFichaTabResumen(cita, paciente, totalEncuentros) {
+    var modIcon = {'Presencial':'🩺','Telemedicina':'📡','Domiciliaria':'🏠'}[cita.modalidad] || '·';
+    return '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:14px; margin-bottom:18px;">' +
+
+      // Cita actual destacada
+      '<div style="grid-column:1/-1; background:#eff6ff; border-left:4px solid #1565c0; border-radius:8px; padding:14px 16px;">' +
+        '<div style="font-size:11px; color:#1e40af; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; margin-bottom:6px;">Cita seleccionada</div>' +
+        '<div style="font-size:15px; font-weight:700; color:#0f172a;">' +
+          fmtFecha(cita.fecha) + ' · ' + (cita.hora || '—') + ' hrs' +
+        '</div>' +
+        '<div style="font-size:13px; color:#374151; margin-top:4px;">' +
+          modIcon + ' ' + (cita.modalidad || '—') + ' · ' + (cita.actividad || '—') +
+        '</div>' +
+        '<div style="font-size:12px; color:#6b7280; margin-top:2px;">👤 ' + (cita.profesionalNombre || '—') + '</div>' +
+        (cita.motivo ? '<div style="font-size:12px; color:#374151; margin-top:6px;"><strong>Motivo:</strong> ' + cita.motivo + '</div>' : '') +
+      '</div>' +
+
+      // Tarjeta de contacto
+      '<div style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; padding:14px 16px;">' +
+        '<div style="font-size:11px; color:#6b7280; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; margin-bottom:6px;">Contacto</div>' +
+        '<div style="font-size:13px; color:#1f2937; line-height:1.7;">' +
+          (paciente.telefono ? '📞 ' + paciente.telefono : '<span style="color:#9ca3af; font-style:italic;">Sin teléfono</span>') + '<br>' +
+          (paciente.direccion ? '🏠 ' + paciente.direccion : '<span style="color:#9ca3af; font-style:italic;">Sin dirección</span>') +
+        '</div>' +
+      '</div>' +
+
+      // Tarjeta de estadísticas
+      '<div style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; padding:14px 16px;">' +
+        '<div style="font-size:11px; color:#6b7280; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; margin-bottom:6px;">Historial</div>' +
+        '<div style="font-size:13px; color:#1f2937; line-height:1.7;">' +
+          '<strong style="font-size:18px;">' + totalEncuentros + '</strong> atenciones realizadas<br>' +
+          '<span style="color:#6b7280; font-size:12px;">en el sistema</span>' +
+        '</div>' +
+      '</div>' +
+
+    '</div>';
+  }
+
+  // Pestaña Historia clínica
+  function saaFichaTabHistoria(historia) {
+    if (!historia || historia.length === 0) {
+      return '<div style="text-align:center; padding:30px 20px; color:#6b7280;">' +
+        '<div style="font-size:36px; opacity:0.3; margin-bottom:10px;">📚</div>' +
+        '<strong style="display:block; font-size:14px; margin-bottom:4px;">Sin encuentros previos</strong>' +
+        '<span style="font-size:12px;">Esta es la primera cita registrada para el paciente.</span>' +
+      '</div>';
+    }
+    var html = '<div style="font-size:12px; color:#6b7280; margin-bottom:12px;">' +
+      '<strong style="color:#1f2937;">' + historia.length + '</strong> encuentro' + (historia.length===1?'':'s') + ' registrado' + (historia.length===1?'':'s') +
+    '</div>';
+
+    historia.forEach(function(c){
+      var modBadge = '';
+      if (c.modalidad === 'Telemedicina') {
+        modBadge = '<span style="display:inline-block; background:#dbeafe; color:#1e40af; padding:3px 9px; border-radius:999px; font-size:10px; font-weight:700; letter-spacing:0.5px;">TELEMED</span>';
+      } else if (c.modalidad === 'Domiciliaria') {
+        modBadge = '<span style="display:inline-block; background:#fef3c7; color:#92400e; padding:3px 9px; border-radius:999px; font-size:10px; font-weight:700; letter-spacing:0.5px;">DOMICILIO</span>';
+      } else {
+        modBadge = '<span style="display:inline-block; background:#e0e7ff; color:#3730a3; padding:3px 9px; border-radius:999px; font-size:10px; font-weight:700; letter-spacing:0.5px;">PRESENCIAL</span>';
+      }
+
+      var estilo = '';
+      var estTxt = c.estado;
+      if (c.estado === 'REALIZADA')      estilo = 'background:#dcfce7; color:#166534;';
+      else if (c.estado === 'NSP')       estilo = 'background:#f3f4f6; color:#374151;';
+      else if (c.estado === 'AUSENTE')   estilo = 'background:#fee2e2; color:#991b1b;';
+      else if (c.estado === 'REAGENDAR') { estilo = 'background:#ede9fe; color:#5b21b6;'; estTxt = 'REAGENDAR'; }
+      else if (c.estado === 'AGENDADA')  estilo = 'background:#dbeafe; color:#1e40af;';
+      else                                estilo = 'background:#e5e7eb; color:#374151;';
+
+      html += '<div style="background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:14px 16px; margin-bottom:10px;">' +
+        '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:6px;">' +
+          '<div>' +
+            '<strong style="font-size:14px; color:#0f172a;">' + fmtFecha(c.fecha) + '</strong>' +
+            '<span style="margin-left:8px;">' + modBadge + '</span>' +
+          '</div>' +
+          '<span style="display:inline-block; padding:3px 9px; border-radius:999px; font-size:10px; font-weight:700; letter-spacing:0.5px; ' + estilo + '">' + estTxt + '</span>' +
+        '</div>' +
+        '<div style="font-size:12px; color:#4b5563;">' +
+          (c.hora ? '<strong>' + c.hora + ' hrs</strong> · ' : '') +
+          (c.actividad || '—') +
+        '</div>' +
+        (c.profesionalNombre ? '<div style="font-size:11px; color:#6b7280; margin-top:2px;">👤 ' + c.profesionalNombre + '</div>' : '') +
+        (c.motivo ? '<div style="font-size:12px; color:#374151; margin-top:6px;"><strong>Motivo:</strong> ' + c.motivo + '</div>' : '') +
+      '</div>';
+    });
+
+    return html;
+  }
+
+  // Botones de acción para la cita actual (en el footer de la ficha)
+  function saaFichaAccionesCita(cita) {
+    if (cita.estado !== 'AGENDADA' && cita.estado !== 'REALIZADA' && cita.estado !== 'NSP' && cita.estado !== 'AUSENTE' && cita.estado !== 'REAGENDAR') {
+      return '';
+    }
+
+    var idSafe = String(cita.id).replace(/'/g, "\\'");
+    var estiloBtn = 'color:#fff; font-weight:600; padding:10px 14px; border:none; border-radius:8px; font-size:12px; cursor:pointer; display:inline-flex; align-items:center; gap:4px;';
+
+    var botones = '';
+
+    // Solo si está AGENDADA mostrar los 4 cambios de estado
+    if (cita.estado === 'AGENDADA') {
+      botones =
+        '<button onclick="saaAgendaMarcar(\'' + idSafe + '\',\'REALIZADA\'); saaCloseModal(\'saaModalFichaPaciente\'); saaCloseModal(\'saaModalDiaCitas\'); saaAgendaCalRender();" ' +
+                'style="' + estiloBtn + ' background:#059669;">✓ Realizada</button>' +
+        '<button onclick="saaAgendaMarcar(\'' + idSafe + '\',\'NSP\'); saaCloseModal(\'saaModalFichaPaciente\'); saaCloseModal(\'saaModalDiaCitas\'); saaAgendaCalRender();" ' +
+                'style="' + estiloBtn + ' background:#6b7280;">✕ NSP</button>' +
+        '<button onclick="saaAgendaMarcar(\'' + idSafe + '\',\'AUSENTE\'); saaCloseModal(\'saaModalFichaPaciente\'); saaCloseModal(\'saaModalDiaCitas\'); saaAgendaCalRender();" ' +
+                'style="' + estiloBtn + ' background:#dc2626;">⊘ Ausente</button>' +
+        '<button onclick="saaAgendaMarcar(\'' + idSafe + '\',\'REAGENDAR\'); saaCloseModal(\'saaModalFichaPaciente\'); saaCloseModal(\'saaModalDiaCitas\'); saaAgendaCalRender();" ' +
+                'style="' + estiloBtn + ' background:#7c3aed;">↻ Reagendar / L. Espera</button>';
+    } else {
+      // Si no está AGENDADA, mostrar info del estado
+      botones = '<div style="flex:1; color:#6b7280; font-size:12px;">' +
+        'Esta cita ya fue gestionada (' + cita.estado + '). Solo se puede eliminar.' +
+      '</div>';
+    }
+
+    botones +=
+      '<button onclick="if(confirm(\'¿Eliminar esta cita?\')){saaAgendaEliminar(\'' + idSafe + '\'); saaCloseModal(\'saaModalFichaPaciente\');}" ' +
+              'style="' + estiloBtn + ' background:#991b1b; margin-left:auto;">🗑 Eliminar</button>';
+
+    return '<div style="background:#f9fafb; padding:14px 24px; border-top:1px solid #e5e7eb; border-radius:0 0 16px 16px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">' +
+      botones +
+    '</div>';
+  }
+
+  // Wrapper para re-renderizar la pestaña sin perder el contexto
+  var _saaRenderFichaOriginal = window.saaRenderFichaPaciente;
+  window.saaRenderFichaPaciente = function(cita, paciente, historia, totalEncuentros, pestaña) {
+    if (cita === '__use_last__' && window._saaFichaCtx) {
+      var ctx = window._saaFichaCtx;
+      _saaRenderFichaOriginal(ctx.cita, ctx.paciente, ctx.historia, ctx.totalEncuentros, pestaña);
+    } else {
+      _saaRenderFichaOriginal(cita, paciente, historia, totalEncuentros, pestaña);
+    }
   };
 
   window.saaAgendaMarcar = function(id, estado) {
@@ -13288,16 +13714,18 @@ window.addEventListener('appinstalled', function() {
 
   window.saaEsperaRender = function() {
     var data = saaEsperaUnidas();
-    var q     = (document.getElementById('saaEsperaQ').value || '').toLowerCase();
-    var act   = document.getElementById('saaEsperaAct').value;
-    var est   = document.getElementById('saaEsperaEstado').value;
-    var orden = document.getElementById('saaEsperaOrden').value;
+    var q      = (document.getElementById('saaEsperaQ').value || '').toLowerCase();
+    var agFil  = document.getElementById('saaEsperaAgrupFiltro') ? document.getElementById('saaEsperaAgrupFiltro').value : '';
+    var act    = document.getElementById('saaEsperaAct').value;
+    var est    = document.getElementById('saaEsperaEstado').value;
+    var orden  = document.getElementById('saaEsperaOrden').value;
 
     var f = data.filter(function(r){
       if (q) {
-        var txt = ((r.nombre||'') + ' ' + (r.rut||'') + ' ' + (r.diagnostico||'')).toLowerCase();
+        var txt = ((r.nombre||'') + ' ' + (r.rut||'') + ' ' + (r.diagnostico||'') + ' ' + (r.observaciones||'')).toLowerCase();
         if (txt.indexOf(q) === -1) return false;
       }
+      if (agFil && r.agrupacion !== agFil) return false;
       if (act && r.actividad !== act) return false;
       if (est && r.estado !== est) return false;
       return true;
@@ -13351,6 +13779,28 @@ window.addEventListener('appinstalled', function() {
       var histBadge = r._origen === 'historico'
         ? ' <span style="display:inline-block; background:var(--pa-gray-200); color:var(--pa-gray-700); padding:1px 6px; border-radius:999px; font-size:9px; font-weight:700; letter-spacing:0.5px; vertical-align:middle;">📂 HIST</span>'
         : '';
+
+      // Badge del llamado (si se realizó)
+      var llamadoBadge = '';
+      if (r.llamadoRealizado) {
+        if (r.respuestaLlamado === 'acepta') {
+          llamadoBadge = ' <span style="display:inline-block; background:#dcfce7; color:#166534; padding:2px 7px; border-radius:999px; font-size:10px; font-weight:700; margin-left:4px;" title="Paciente acepta hora">📞 ACEPTA</span>';
+        } else if (r.respuestaLlamado === 'rechaza') {
+          llamadoBadge = ' <span style="display:inline-block; background:#fee2e2; color:#991b1b; padding:2px 7px; border-radius:999px; font-size:10px; font-weight:700; margin-left:4px;" title="Paciente rechaza hora">📞 RECHAZA</span>';
+        } else if (r.respuestaLlamado === 'no_contesta') {
+          llamadoBadge = ' <span style="display:inline-block; background:#f3f4f6; color:#4b5563; padding:2px 7px; border-radius:999px; font-size:10px; font-weight:700; margin-left:4px;" title="Paciente no contesta">📞 NO CONTESTA</span>';
+        } else {
+          llamadoBadge = ' <span style="display:inline-block; background:#dbeafe; color:#1e40af; padding:2px 7px; border-radius:999px; font-size:10px; font-weight:700; margin-left:4px;">📞 LLAMADO</span>';
+        }
+      }
+
+      // Observaciones (truncadas en la tabla)
+      var obsHtml = '';
+      if (r.observaciones) {
+        var obsCorta = r.observaciones.length > 60 ? r.observaciones.substring(0,60) + '…' : r.observaciones;
+        obsHtml = '<div style="font-size:11px; color:#6b7280; margin-top:3px; font-style:italic;" title="' + r.observaciones.replace(/"/g,'&quot;') + '">📝 ' + obsCorta + '</div>';
+      }
+
       // Acciones: para los históricos permitimos AGENDAR (lo lleva a Dación) y ELIMINAR si es necesario
       var acciones = '';
       if (r.estado === 'INGRESADA' || r.estado === 'EN ESPERA') {
@@ -13361,7 +13811,10 @@ window.addEventListener('appinstalled', function() {
       }
       return '<tr' + (r._origen === 'historico' ? ' style="background:var(--pa-gray-50);"' : '') + '>' +
         '<td>' + diasBadge + '</td>' +
-        '<td><strong>' + (r.nombre||'') + '</strong>' + gesBadge + histBadge + '<div style="font-size:12px; color:var(--pa-gray-600);">' + (r.rut||'') + ' · ' + (r.edad ? r.edad + 'a' : '') + (r.comuna ? ' · 📍 ' + r.comuna : '') + '</div></td>' +
+        '<td><strong>' + (r.nombre||'') + '</strong>' + gesBadge + histBadge + llamadoBadge +
+            '<div style="font-size:12px; color:var(--pa-gray-600);">' + (r.rut||'') + ' · ' + (r.edad ? r.edad + 'a' : '') + (r.comuna ? ' · 📍 ' + r.comuna : '') + (r.telefono ? ' · 📞 ' + r.telefono : '') + '</div>' +
+            obsHtml +
+        '</td>' +
         '<td>' + (r.actividad||'') + '</td>' +
         '<td>' + (r.diagnostico || '<span style="color:var(--pa-gray-500)">—</span>') + '</td>' +
         '<td><span class="saa-badge ' + estadoCls + '">' + r.estado + '</span>' +
@@ -13402,12 +13855,17 @@ window.addEventListener('appinstalled', function() {
 
   window.saaEsperaLimpiarFiltros = function() {
     document.getElementById('saaEsperaQ').value = '';
-    document.getElementById('saaEsperaAct').value = '';
+    var agFil = document.getElementById('saaEsperaAgrupFiltro');
+    if (agFil) agFil.value = '';
+    // Restaurar el select de actividad a "Todas" sin opciones específicas
+    var actSel = document.getElementById('saaEsperaAct');
+    if (actSel) actSel.innerHTML = '<option value="">Todas</option>';
     document.getElementById('saaEsperaEstado').value = '';
     document.getElementById('saaEsperaOrden').value = 'dias_desc';
     saaEsperaRender();
   };
 
+  // Limpia y abre el modal de "Agregar a lista de espera"
   window.saaEsperaNuevoModal = function() {
     document.getElementById('saaEsperaModalTitle').textContent = '+ Agregar a lista de espera';
     document.getElementById('saaEspMRut').value = '';
@@ -13415,43 +13873,241 @@ window.addEventListener('appinstalled', function() {
     document.getElementById('saaEspMNombre').value = '';
     document.getElementById('saaEspMEdad').value = '';
     document.getElementById('saaEspMComuna').value = '';
-    document.getElementById('saaEspMAct').value = 'OFTALMOLOGÍA';
+    var tel = document.getElementById('saaEspMTel'); if (tel) tel.value = '';
+    var agrup = document.getElementById('saaEspMAgrup'); if (agrup) agrup.value = '';
+    var act = document.getElementById('saaEspMAct');
+    if (act) { act.innerHTML = '<option value="">— Seleccione agrupación —</option>'; act.disabled = true; }
     document.getElementById('saaEspMDx').value = '';
     document.getElementById('saaEspMGes').value = 'no';
+    var llamado = document.getElementById('saaEspMLlamado'); if (llamado) llamado.checked = false;
+    var respWrap = document.getElementById('saaEspMRespuestaWrap'); if (respWrap) respWrap.style.display = 'none';
+    var radios = document.getElementsByName('saaEspMRespuesta');
+    for (var i = 0; i < radios.length; i++) radios[i].checked = false;
+    var obs = document.getElementById('saaEspMObs'); if (obs) obs.value = '';
+    var resEl = document.getElementById('saaEspMBuscarResultado'); if (resEl) resEl.innerHTML = '';
     saaOpenModal('saaModalEspera');
+    // Foco automático en el RUT para escribir de inmediato
+    setTimeout(function(){
+      var rutInp = document.getElementById('saaEspMRut');
+      if (rutInp) rutInp.focus();
+    }, 100);
   };
 
+  // Busca el RUT ingresado en la base HGGB y, si lo encuentra, autollena los campos
+  window.saaEsperaBuscarRut = function() {
+    var rutInp = document.getElementById('saaEspMRut');
+    var resEl  = document.getElementById('saaEspMBuscarResultado');
+    var raw    = (rutInp.value || '').trim();
+    if (!raw) {
+      resEl.innerHTML = '<span style="color:#dc2626;">⚠️ Ingresa un RUT primero.</span>';
+      return;
+    }
+    var rutFmt = formatearRut(raw);
+    if (!validaRutDV(rutFmt)) {
+      resEl.innerHTML = '<span style="color:#dc2626;">⚠️ RUT inválido. El dígito verificador no coincide.</span>';
+      return;
+    }
+    rutInp.value = rutFmt;
+
+    // Verificar primero si ya está en la lista de espera (evitar duplicados)
+    var yaEnEspera = (SAA.espera || []).find(function(x){ return x.rut === rutFmt && (x.estado === 'INGRESADA' || x.estado === 'EN ESPERA'); });
+    if (yaEnEspera) {
+      resEl.innerHTML = '<div style="background:#fef3c7; color:#92400e; padding:8px 12px; border-radius:6px; border-left:3px solid #f59e0b;">' +
+        '⚠️ <strong>' + yaEnEspera.nombre + '</strong> ya está en la lista de espera (' +
+        diasDesde(yaEnEspera.fechaIngreso) + ' días esperando).<br>' +
+        '<span style="font-size:11px;">Puedes seguir y crear otro registro, o cerrar y revisar el existente.</span>' +
+      '</div>';
+      // No retornamos: dejamos que el usuario decida
+    }
+
+    // 1) Buscar en base HGGB
+    if (!window.HGGB_PAC_ready) {
+      resEl.innerHTML = '<span style="color:#6b7280;">⏳ Cargando base de pacientes... vuelve a intentar en un segundo.</span>';
+      if (typeof window.hggbLoadPacientes === 'function') {
+        window.hggbLoadPacientes(function(){ saaEsperaBuscarRut(); });
+      }
+      return;
+    }
+    var hggb = window.hggbBuscarPorRut(rutFmt);
+    if (hggb) {
+      // Autollenar
+      document.getElementById('saaEspMNombre').value = hggb.n || '';
+      document.getElementById('saaEspMEdad').value   = hggb.e || '';
+      document.getElementById('saaEspMComuna').value = hggb.c || '';
+      // Aplicar override de paciente si hay (teléfono editado, etc.)
+      var pacObj = { rut: rutFmt, telefono: hggb.t || '', comuna: hggb.c || '' };
+      if (typeof saaAplicarOverridePaciente === 'function') saaAplicarOverridePaciente(pacObj);
+      var tel = document.getElementById('saaEspMTel'); if (tel) tel.value = pacObj.telefono || '';
+      resEl.innerHTML = '<div style="background:#dcfce7; color:#166534; padding:8px 12px; border-radius:6px; border-left:3px solid #16a34a;">' +
+        '✓ <strong>' + hggb.n + '</strong> encontrado en base HGGB. Datos auto-llenados.' +
+      '</div>';
+      return;
+    }
+
+    // 2) Buscar en SAA.citas o SAA.espera previa (paciente conocido por el sistema)
+    var fuentes = (SAA.citas || []).concat(SAA.espera || []);
+    var localEnc = fuentes.find(function(x){ return x.rut === rutFmt; });
+    if (localEnc) {
+      document.getElementById('saaEspMNombre').value = localEnc.nombre || '';
+      document.getElementById('saaEspMEdad').value   = localEnc.edad || '';
+      document.getElementById('saaEspMComuna').value = localEnc.comuna || '';
+      var tel2 = document.getElementById('saaEspMTel');
+      if (tel2) tel2.value = localEnc.telefono || '';
+      resEl.innerHTML = '<div style="background:#dbeafe; color:#1e40af; padding:8px 12px; border-radius:6px; border-left:3px solid #1565c0;">' +
+        '✓ <strong>' + localEnc.nombre + '</strong> encontrado en registros del sistema. Datos auto-llenados.' +
+      '</div>';
+      return;
+    }
+
+    // 3) No encontrado
+    resEl.innerHTML = '<div style="background:#fee2e2; color:#991b1b; padding:8px 12px; border-radius:6px; border-left:3px solid #dc2626;">' +
+      '✕ RUT no encontrado en la base. <strong>Completa los datos manualmente.</strong>' +
+    '</div>';
+    // Limpiar campos para que escriba manual
+    document.getElementById('saaEspMNombre').value = '';
+    document.getElementById('saaEspMEdad').value   = '';
+    document.getElementById('saaEspMComuna').value = '';
+    var tel3 = document.getElementById('saaEspMTel'); if (tel3) tel3.value = '';
+    setTimeout(function(){
+      var nomInp = document.getElementById('saaEspMNombre');
+      if (nomInp) nomInp.focus();
+    }, 100);
+  };
+
+  // Modo manual: salta la búsqueda y enfoca directamente en el nombre
+  window.saaEsperaModoManual = function() {
+    var resEl = document.getElementById('saaEspMBuscarResultado');
+    if (resEl) {
+      resEl.innerHTML = '<div style="background:#f3f4f6; color:#374151; padding:6px 10px; border-radius:6px; font-size:11px;">' +
+        '✏️ Modo manual activo. Completa los datos abajo.' +
+      '</div>';
+    }
+    setTimeout(function(){
+      var nomInp = document.getElementById('saaEspMNombre');
+      if (nomInp) nomInp.focus();
+    }, 50);
+  };
+
+  // Cuando cambia la agrupación en el modal, refresca el select de actividad
+  window.saaEsperaAgrupChange = function() {
+    var ag = document.getElementById('saaEspMAgrup').value;
+    var sel = document.getElementById('saaEspMAct');
+    if (!sel) return;
+    if (!ag) {
+      sel.innerHTML = '<option value="">— Seleccione agrupación —</option>';
+      sel.disabled = true;
+      return;
+    }
+    var acts = (typeof saaActividadesDisponibles === 'function' ? saaActividadesDisponibles() : [])
+                .filter(function(a){ return a.agrup === ag; });
+    sel.innerHTML = '<option value="">— Seleccione —</option>' +
+      acts.map(function(a){ return '<option value="' + a.act.replace(/"/g,'&quot;') + '">' + a.act + '</option>'; }).join('');
+    sel.disabled = false;
+  };
+
+  // Toggle del bloque "Respuesta del paciente" según el checkbox de llamado
+  window.saaEsperaToggleLlamado = function() {
+    var ck = document.getElementById('saaEspMLlamado');
+    var wrap = document.getElementById('saaEspMRespuestaWrap');
+    if (!ck || !wrap) return;
+    wrap.style.display = ck.checked ? 'block' : 'none';
+  };
+
+  // Cuando cambia el filtro de agrupación en la barra superior, refresca actividades disponibles
+  window.saaEsperaAgrupFiltroChange = function() {
+    var ag = document.getElementById('saaEsperaAgrupFiltro').value;
+    var sel = document.getElementById('saaEsperaAct');
+    if (!sel) return;
+    if (!ag) {
+      sel.innerHTML = '<option value="">Todas</option>';
+    } else {
+      var acts = (typeof saaActividadesDisponibles === 'function' ? saaActividadesDisponibles() : [])
+                  .filter(function(a){ return a.agrup === ag; });
+      // Quitar duplicados de actividades dentro de la misma agrupación
+      var unicas = [];
+      acts.forEach(function(a){ if (unicas.indexOf(a.act) === -1) unicas.push(a.act); });
+      sel.innerHTML = '<option value="">Todas</option>' +
+        unicas.map(function(actNombre){ return '<option value="' + actNombre.replace(/"/g,'&quot;') + '">' + actNombre + '</option>'; }).join('');
+    }
+    saaEsperaRender();
+  };
+
+  // Guarda el registro nuevo (o modificado) en la lista de espera
   window.saaEsperaGuardar = function() {
-    var rut    = document.getElementById('saaEspMRut').value.trim();
+    var rut    = (document.getElementById('saaEspMRut').value || '').trim();
     var fecha  = document.getElementById('saaEspMFecha').value;
-    var nombre = document.getElementById('saaEspMNombre').value.trim();
-    if (!rut)    { alert('Falta el RUT.'); return; }
-    if (!nombre) { alert('Falta el nombre.'); return; }
+    var nombre = (document.getElementById('saaEspMNombre').value || '').trim();
+    var agrup  = document.getElementById('saaEspMAgrup').value;
+    var act    = document.getElementById('saaEspMAct').value;
+
+    if (!rut)    { alert('⚠️ Falta el RUT.'); return; }
+    if (!nombre) { alert('⚠️ Falta el nombre del paciente.'); return; }
+    if (!agrup)  { alert('⚠️ Selecciona una agrupación.'); return; }
+    if (!act)    { alert('⚠️ Selecciona una actividad.'); return; }
+
     var rutFmt = formatearRut(rut);
+
+    // Respuesta del paciente al llamado (si aplica)
+    var llamado = document.getElementById('saaEspMLlamado').checked;
+    var respuesta = '';
+    if (llamado) {
+      var radios = document.getElementsByName('saaEspMRespuesta');
+      for (var i = 0; i < radios.length; i++) {
+        if (radios[i].checked) { respuesta = radios[i].value; break; }
+      }
+    }
+
+    var telefono = (document.getElementById('saaEspMTel').value || '').trim();
+    var obs      = (document.getElementById('saaEspMObs').value || '').trim();
+
+    // Si el usuario editó el teléfono, persistirlo en el override de paciente
+    if (telefono && typeof saaGuardarOverridePaciente === 'function') {
+      saaGuardarOverridePaciente(rutFmt, 'telefono', telefono);
+    }
+
     SAA.espera.push({
       id: uid(),
       rut: rutFmt,
       nombre: nombre,
       edad: document.getElementById('saaEspMEdad').value,
-      comuna: document.getElementById('saaEspMComuna').value.trim(),
-      actividad: document.getElementById('saaEspMAct').value,
-      diagnostico: document.getElementById('saaEspMDx').value.trim(),
+      comuna: (document.getElementById('saaEspMComuna').value || '').trim(),
+      telefono: telefono,
+      agrupacion: agrup,
+      actividad: act,
+      diagnostico: (document.getElementById('saaEspMDx').value || '').trim(),
       ges: document.getElementById('saaEspMGes').value,
+      llamadoRealizado: !!llamado,
+      respuestaLlamado: respuesta,            // 'acepta' | 'rechaza' | 'no_contesta' | ''
+      observaciones: obs,
       estado: 'INGRESADA',
       fechaIngreso: fecha || hoyIso(),
+      creadoEn: new Date().toISOString(),
       creadoPor: (typeof currentUser !== 'undefined' && currentUser) ? currentUser : 'sistema'
     });
     saaSave('espera');
     saaCloseModal('saaModalEspera');
     saaEsperaRender();
+
+    var msg = '✓ Paciente agregado a la lista de espera.';
+    if (llamado) {
+      if (respuesta === 'acepta')       msg += '\n📞 Llamado realizado: paciente ACEPTA hora.';
+      else if (respuesta === 'rechaza') msg += '\n📞 Llamado realizado: paciente RECHAZA hora.';
+      else if (respuesta === 'no_contesta') msg += '\n📞 Llamado realizado: paciente NO CONTESTÓ.';
+      else msg += '\n📞 Llamado realizado.';
+    }
+    alert(msg);
   };
 
   window.saaEsperaExportar = function() {
     var data = SAA.espera;
     if (!data.length) { alert('No hay datos para exportar.'); return; }
-    var headers = ['RUT','Nombre','Edad','Comuna','Actividad','Diagnóstico','GES','Estado','Fecha ingreso','Días espera'];
+    var headers = ['RUT','Nombre','Edad','Comuna','Teléfono','Agrupación','Actividad','Diagnóstico','GES','Estado','Fecha ingreso','Días espera','Llamado','Respuesta','Observaciones'];
     var rows = data.map(function(r){
-      return [r.rut, r.nombre, r.edad, r.comuna, r.actividad, r.diagnostico, r.ges, r.estado, r.fechaIngreso, diasDesde(r.fechaIngreso)];
+      var respTxt = '';
+      if (r.respuestaLlamado === 'acepta') respTxt = 'Acepta';
+      else if (r.respuestaLlamado === 'rechaza') respTxt = 'Rechaza';
+      else if (r.respuestaLlamado === 'no_contesta') respTxt = 'No contesta';
+      return [r.rut, r.nombre, r.edad, r.comuna, r.telefono||'', r.agrupacion||'', r.actividad, r.diagnostico, r.ges, r.estado, r.fechaIngreso, diasDesde(r.fechaIngreso), (r.llamadoRealizado ? 'Sí' : 'No'), respTxt, r.observaciones||''];
     });
     var csv = headers.join(',') + '\n' + rows.map(function(r){
       return r.map(function(c){ return '"' + String(c||'').replace(/"/g,'""') + '"'; }).join(',');
