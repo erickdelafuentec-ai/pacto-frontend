@@ -4312,58 +4312,49 @@ body.has-shell .back-btn { display: none !important; }
       <div class="pa-page-header">
         <div>
           <h1>📅 Agenda</h1>
-          <div class="pa-page-sub">Citas del día y próximos días</div>
+          <div class="pa-page-sub">Calendario de citas presenciales, teleconsultas y visitas domiciliarias</div>
         </div>
         <div style="display:flex; gap:10px;">
-          <button class="saa-btn saa-btn-accent" onclick="goTo('screenDacion')">+ Nueva hora</button>
+          <button class="saa-btn saa-btn-accent" onclick="goTo('screenDacion')">+ Nueva cita</button>
         </div>
       </div>
 
-      <div class="saa-stats" id="saaAgendaStats"></div>
+      <div class="saa-stats" id="saaAgendaStatsCal"></div>
 
-      <div class="saa-filterbar" style="grid-template-columns: 1fr 1fr 1fr auto;">
-        <div>
-          <label class="saa-label">Buscar paciente</label>
-          <input class="saa-input" id="saaAgendaQ" placeholder="Nombre o RUT" oninput="saaAgendaRender()">
+      <div class="saa-calendar-wrap">
+        <div class="saa-calendar-head">
+          <button class="saa-cal-nav-btn" onclick="saaAgendaCalPrev()">‹</button>
+          <h2 class="saa-cal-title" id="saaCalTitle">—</h2>
+          <button class="saa-cal-nav-btn" onclick="saaAgendaCalNext()">›</button>
         </div>
-        <div>
-          <label class="saa-label">Fecha desde</label>
-          <input class="saa-input" type="date" id="saaAgendaDesde" onchange="saaAgendaRender()">
+        <div class="saa-cal-grid-header">
+          <div>LUN</div><div>MAR</div><div>MIÉ</div><div>JUE</div><div>VIE</div><div>SÁB</div><div>DOM</div>
         </div>
-        <div>
-          <label class="saa-label">Modalidad</label>
-          <select class="saa-select" id="saaAgendaMod" onchange="saaAgendaRender()">
-            <option value="">Todas</option>
-            <option>Presencial</option>
-            <option>Telemedicina</option>
-            <option>Domiciliaria</option>
-          </select>
-        </div>
-        <button class="saa-btn saa-btn-ghost" onclick="saaAgendaLimpiarFiltros()">↻ Limpiar</button>
-      </div>
-
-      <div class="saa-table-wrap">
-        <div class="saa-table-head">
-          <div class="saa-count" id="saaAgendaCount">0 citas</div>
-        </div>
-        <div style="overflow-x:auto">
-          <table class="saa-tbl">
-            <thead>
-              <tr>
-                <th>Fecha · Hora</th>
-                <th>Paciente</th>
-                <th>Actividad</th>
-                <th>Profesional</th>
-                <th>Modalidad</th>
-                <th>Estado</th>
-                <th style="text-align:right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody id="saaAgendaTbody"></tbody>
-          </table>
+        <div class="saa-cal-grid" id="saaCalGrid"></div>
+        <div class="saa-cal-legend">
+          <div class="leg-item"><span class="leg-dot pres"></span>Presencial</div>
+          <div class="leg-item"><span class="leg-dot tele"></span>Telemedicina</div>
+          <div class="leg-item"><span class="leg-dot domi"></span>Domicilio</div>
         </div>
       </div>
     </div>
+
+    <!-- ════════ MODAL: Citas del día (al hacer click en una celda) ════════ -->
+    <div class="saa-modal-bg" id="saaModalDiaCitas">
+      <div class="saa-modal" style="max-width:680px">
+        <div class="saa-modal-head">
+          <h3 id="saaModalDiaTitle">Citas del día</h3>
+          <button class="saa-modal-close" onclick="saaCloseModal('saaModalDiaCitas')">✕</button>
+        </div>
+        <div class="saa-modal-body" id="saaModalDiaBody"></div>
+        <div class="saa-modal-foot">
+          <button class="saa-btn saa-btn-ghost" onclick="saaCloseModal('saaModalDiaCitas')">Cerrar</button>
+          <button class="saa-btn saa-btn-accent" onclick="saaCloseModal('saaModalDiaCitas'); goTo('screenDacion');">+ Nueva cita</button>
+        </div>
+      </div>
+    </div>
+
+
 
     <!-- ════════ SCREEN: LISTA DE ESPERA ════════ -->
     <div class="screen" id="screenEspera">
@@ -4501,6 +4492,139 @@ body.has-shell .back-btn { display: none !important; }
 
     <!-- ════════ SCREEN: CHAT WHATSAPP ════════ -->
     <style>
+    /* ── Estilos del calendario Agenda ── */
+    .saa-calendar-wrap {
+      background: #fff;
+      border: 1px solid var(--pa-gray-200);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(8,40,74,0.05);
+      margin-top: 4px;
+    }
+    .saa-calendar-head {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+      padding: 14px 20px;
+      background: var(--pa-gray-50);
+      border-bottom: 1px solid var(--pa-gray-200);
+    }
+    .saa-cal-title {
+      font-family: 'Source Serif 4', Georgia, serif;
+      font-size: 20px; font-weight: 600;
+      color: var(--pa-navy-900);
+      margin: 0; text-transform: capitalize;
+    }
+    .saa-cal-nav-btn {
+      background: #fff; border: 1px solid var(--pa-gray-300);
+      border-radius: 8px; width: 36px; height: 36px;
+      font-size: 18px; cursor: pointer;
+      color: var(--pa-navy-700); font-family: inherit;
+      transition: all 0.15s; display: grid; place-items: center;
+    }
+    .saa-cal-nav-btn:hover { background: var(--pa-navy-800); color: #fff; border-color: var(--pa-navy-800); }
+
+    .saa-cal-grid-header {
+      display: grid; grid-template-columns: repeat(7, 1fr);
+      background: var(--pa-navy-800); color: #fff;
+      font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
+    }
+    .saa-cal-grid-header > div {
+      padding: 10px 8px; text-align: center;
+      border-right: 1px solid rgba(255,255,255,0.1);
+    }
+    .saa-cal-grid-header > div:last-child { border-right: none; }
+
+    .saa-cal-grid {
+      display: grid; grid-template-columns: repeat(7, 1fr);
+      grid-auto-rows: minmax(120px, auto);
+    }
+    .saa-cal-cell {
+      border-right: 1px solid var(--pa-gray-200);
+      border-bottom: 1px solid var(--pa-gray-200);
+      padding: 8px; background: #fff; position: relative;
+      min-height: 120px; cursor: pointer;
+      transition: background 0.15s;
+      display: flex; flex-direction: column; gap: 3px; overflow: hidden;
+    }
+    .saa-cal-cell:hover { background: var(--pa-ice-50); }
+    .saa-cal-cell.empty { background: var(--pa-gray-50); cursor: default; }
+    .saa-cal-cell.empty:hover { background: var(--pa-gray-50); }
+    .saa-cal-cell.weekend { background: var(--pa-gray-50); }
+    .saa-cal-cell.weekend:hover { background: var(--pa-ice-50); }
+    .saa-cal-cell.today {
+      background: #fff8e1;
+      box-shadow: inset 0 0 0 2px var(--pa-amber-500);
+    }
+    .saa-cal-cell.today:hover { background: #fff3c4; }
+    .saa-cal-cell:nth-child(7n) { border-right: none; }
+
+    .saa-cal-cell-num { font-size: 12px; font-weight: 600; color: var(--pa-gray-700); margin-bottom: 2px; }
+    .saa-cal-cell.today .saa-cal-cell-num { color: #c45c00; font-weight: 700; }
+    .saa-cal-cell-num.weekend { color: var(--pa-gray-500); }
+
+    .saa-cal-pill {
+      background: #2563eb; color: #fff;
+      padding: 3px 7px; border-radius: 4px;
+      font-size: 10.5px; font-weight: 500;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      cursor: pointer; transition: filter 0.12s;
+    }
+    .saa-cal-pill:hover { filter: brightness(1.1); }
+    .saa-cal-pill.pres { background: #2563eb; }
+    .saa-cal-pill.tele { background: #16a34a; }
+    .saa-cal-pill.domi { background: var(--pa-amber-500); color: var(--pa-navy-900); }
+    .saa-cal-pill.nsp  { background: var(--pa-gray-500); text-decoration: line-through; opacity: 0.7; }
+    .saa-cal-pill.real { background: #059669; }
+    .saa-cal-pill .pill-hora { font-weight: 700; }
+
+    .saa-cal-more {
+      font-size: 10.5px; color: var(--pa-gray-600);
+      font-weight: 600; padding: 2px 6px; cursor: pointer; border-radius: 4px;
+    }
+    .saa-cal-more:hover { background: var(--pa-navy-100); color: var(--pa-navy-700); }
+
+    .saa-cal-legend {
+      display: flex; gap: 18px;
+      padding: 14px 20px;
+      border-top: 1px solid var(--pa-gray-200);
+      background: var(--pa-gray-50);
+      font-size: 12px; color: var(--pa-gray-700);
+      align-items: center; flex-wrap: wrap;
+    }
+    .leg-item { display: flex; align-items: center; gap: 7px; }
+    .leg-dot { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
+    .leg-dot.pres { background: #2563eb; }
+    .leg-dot.tele { background: #16a34a; }
+    .leg-dot.domi { background: var(--pa-amber-500); }
+
+    @media (max-width: 768px) {
+      .saa-cal-grid { grid-auto-rows: minmax(80px, auto); }
+      .saa-cal-cell { padding: 4px; min-height: 80px; }
+      .saa-cal-cell-num { font-size: 11px; }
+      .saa-cal-pill { font-size: 9px; padding: 2px 4px; }
+    }
+
+    .saa-modal-dia-item {
+      padding: 12px 14px;
+      border: 1px solid var(--pa-gray-200);
+      border-radius: 10px; margin-bottom: 10px;
+      background: #fff;
+      display: flex; gap: 12px; align-items: flex-start;
+    }
+    .saa-modal-dia-time {
+      background: var(--pa-navy-800); color: #fff;
+      padding: 6px 10px; border-radius: 8px;
+      font-weight: 700; font-size: 13px;
+      min-width: 64px; text-align: center; flex-shrink: 0;
+    }
+    .saa-modal-dia-time.tele { background: #16a34a; }
+    .saa-modal-dia-time.domi { background: var(--pa-amber-500); color: var(--pa-navy-900); }
+    .saa-modal-dia-info { flex: 1; min-width: 0; }
+    .saa-modal-dia-info strong { display: block; color: var(--pa-navy-900); font-size: 14px; margin-bottom: 3px; }
+    .saa-modal-dia-info .meta { font-size: 11.5px; color: var(--pa-gray-600); line-height: 1.5; }
+
     /* ── Estilos del módulo Chat ── */
     .saa-chat-shell {
       background: #fff;
@@ -6917,7 +7041,7 @@ function goTo(screenId) {
   if (screenId === 'screenTS')            renderTSHistorial();
   // Nuevos módulos SAA
   if (screenId === 'screenDacion')        { setTimeout(function(){ if (window.saaDacionInit) saaDacionInit(); }, 30); }
-  if (screenId === 'screenAgenda')        { setTimeout(function(){ if (window.saaAgendaRender) saaAgendaRender(); }, 30); }
+  if (screenId === 'screenAgenda')        { setTimeout(function(){ if (window.saaAgendaCalRender) saaAgendaCalRender(); }, 30); }
   if (screenId === 'screenEspera')        { setTimeout(function(){ if (window.saaEsperaRender) saaEsperaRender(); }, 30); }
   if (screenId === 'screenWhatsApp')      { setTimeout(function(){ if (window.saaWhatsRender) saaWhatsRender(); }, 30); }
   if (screenId === 'screenChat')          { setTimeout(function(){ if (window.saaChatRender) saaChatRender(); }, 30); }
@@ -12342,89 +12466,187 @@ window.addEventListener('appinstalled', function() {
   }
 
   window.saaAgendaRender = function() {
-    var citas = saaAgendaCitasUnidas();
-    var q     = (document.getElementById('saaAgendaQ').value || '').toLowerCase();
-    var desde = document.getElementById('saaAgendaDesde').value;
-    var mod   = document.getElementById('saaAgendaMod').value;
+    // Función legada: redirige al calendario
+    if (window.saaAgendaCalRender) saaAgendaCalRender();
+  };
 
-    var f = citas.filter(function(c){
-      if (q && (c.nombre||'').toLowerCase().indexOf(q) === -1 && (c.rut||'').toLowerCase().indexOf(q) === -1) return false;
-      if (desde && c.fecha < desde) return false;
-      if (mod && c.modalidad !== mod) return false;
-      return true;
-    });
-    // Ordenar por fecha y hora (más recientes arriba si pasaron; las futuras al final)
-    f.sort(function(a,b){
-      var fa = (a.fecha||'') + ' ' + (a.hora||'');
-      var fb = (b.fecha||'') + ' ' + (b.hora||'');
-      return fa < fb ? -1 : (fa > fb ? 1 : 0);
-    });
+  // ── Vista CALENDARIO ──
+  var saaAgCalDate = new Date();
+  saaAgCalDate.setDate(1);
+  saaAgCalDate.setHours(0,0,0,0);
 
-    // Stats — cuentan TODAS las citas (viejas y nuevas)
-    var stEl = document.getElementById('saaAgendaStats');
-    var hoy = hoyIso();
-    var hoyCount = citas.filter(function(c){ return c.fecha === hoy; }).length;
-    var semCount = citas.filter(function(c){
-      if (!c.fecha) return false;
-      var d = new Date(c.fecha + 'T00:00:00'); var h = new Date(hoy + 'T00:00:00');
-      var dias = Math.round((d - h) / 86400000);
-      return dias >= 0 && dias <= 7;
-    }).length;
-    var nspCount  = citas.filter(function(c){ return c.estado === 'NSP'; }).length;
-    var realCount = citas.filter(function(c){ return c.estado === 'REALIZADA'; }).length;
+  window.saaAgendaCalPrev = function() {
+    saaAgCalDate.setMonth(saaAgCalDate.getMonth() - 1);
+    saaAgendaCalRender();
+  };
+  window.saaAgendaCalNext = function() {
+    saaAgCalDate.setMonth(saaAgCalDate.getMonth() + 1);
+    saaAgendaCalRender();
+  };
+
+  function saaAgPillClass(c) {
+    if (c.estado === 'NSP') return 'nsp';
+    if (c.estado === 'REALIZADA') return 'real';
+    if (c.modalidad === 'Telemedicina') return 'tele';
+    if (c.modalidad === 'Domiciliaria')  return 'domi';
+    return 'pres';
+  }
+
+  function saaAgendaStatsCalRender(citasMes, citasHoy, citasTele) {
+    var stEl = document.getElementById('saaAgendaStatsCal');
+    if (!stEl) return;
     stEl.innerHTML = [
-      {label:'Hoy',       value:hoyCount,  cls:'',      sub:'Citas del día'},
-      {label:'Próx. 7 días', value:semCount,  cls:'amber', sub:'Esta semana'},
-      {label:'NSP',       value:nspCount,  cls:'crit',  sub:'No se presentó'},
-      {label:'Realizadas',value:realCount, cls:'ok',    sub:'Totales'}
+      {label:'Total citas mes', value: citasMes,  cls:'',      sub:'en este calendario'},
+      {label:'Hoy',             value: citasHoy,  cls:'amber', sub:'citas programadas'},
+      {label:'Telemedicina',    value: citasTele, cls:'ok',    sub:'del mes'}
     ].map(function(k){
       return '<div class="saa-stat ' + k.cls + '"><div class="saa-stat-label">' + k.label + '</div><div class="saa-stat-value">' + k.value + '</div><div class="saa-stat-sub">' + k.sub + '</div></div>';
     }).join('');
+  }
 
-    // Tabla
-    var nHist = f.filter(function(c){ return c._origen === 'historico'; }).length;
-    var nNuevas = f.length - nHist;
-    var countEl = document.getElementById('saaAgendaCount');
-    if (countEl) {
-      var txt = f.length + ' cita' + (f.length === 1 ? '' : 's');
-      if (nHist > 0) txt += ' (' + nHist + ' histórica' + (nHist === 1 ? '' : 's') + (nNuevas > 0 ? ' + ' + nNuevas + ' nueva' + (nNuevas === 1 ? '' : 's') : '') + ')';
-      countEl.textContent = txt;
+  window.saaAgendaCalRender = function() {
+    var year = saaAgCalDate.getFullYear();
+    var month = saaAgCalDate.getMonth();
+    var primerDia = new Date(year, month, 1);
+    var ultimoDia = new Date(year, month + 1, 0);
+    var diasMes = ultimoDia.getDate();
+    var dowPrimer = primerDia.getDay();
+    var huecosAntes = dowPrimer === 0 ? 6 : (dowPrimer - 1);
+
+    var meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    var tit = document.getElementById('saaCalTitle');
+    if (tit) tit.textContent = meses[month] + ' ' + year;
+
+    var todas = saaAgendaCitasUnidas();
+    var citasDelMes = todas.filter(function(c){
+      if (!c.fecha) return false;
+      var parts = c.fecha.split('-');
+      if (parts.length !== 3) return false;
+      return parseInt(parts[0]) === year && (parseInt(parts[1]) - 1) === month;
+    });
+
+    var porDia = {};
+    citasDelMes.forEach(function(c){
+      var dia = parseInt(c.fecha.split('-')[2], 10);
+      if (!porDia[dia]) porDia[dia] = [];
+      porDia[dia].push(c);
+    });
+    Object.keys(porDia).forEach(function(d){
+      porDia[d].sort(function(a,b){ return (a.hora||'') < (b.hora||'') ? -1 : 1; });
+    });
+
+    var hoy = new Date(); hoy.setHours(0,0,0,0);
+    var hoyIso2 = hoy.getFullYear() + '-' + String(hoy.getMonth()+1).padStart(2,'0') + '-' + String(hoy.getDate()).padStart(2,'0');
+    var citasHoy = todas.filter(function(c){ return c.fecha === hoyIso2; }).length;
+    var citasTele = citasDelMes.filter(function(c){ return c.modalidad === 'Telemedicina'; }).length;
+    saaAgendaStatsCalRender(citasDelMes.length, citasHoy, citasTele);
+
+    var grid = document.getElementById('saaCalGrid');
+    if (!grid) return;
+    var html = '';
+
+    for (var i = 0; i < huecosAntes; i++) {
+      html += '<div class="saa-cal-cell empty"></div>';
     }
-    var tb = document.getElementById('saaAgendaTbody');
-    if (f.length === 0) {
-      tb.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:40px; color:var(--pa-gray-600); font-size:13px;"><div style="font-size:40px; opacity:0.3; margin-bottom:8px;">📅</div>Sin citas para los filtros aplicados</td></tr>';
-      return;
-    }
-    tb.innerHTML = f.map(function(c){
-      var estadoCls = {'AGENDADA':'info', 'REALIZADA':'ok', 'NSP':'crit', 'CANCELADA':'warn'}[c.estado] || 'info';
-      var modIcon = {'Presencial':'🩺','Telemedicina':'📡','Domiciliaria':'🏠'}[c.modalidad] || '·';
-      var histBadge = c._origen === 'historico'
-        ? ' <span style="display:inline-block; background:var(--pa-gray-200); color:var(--pa-gray-700); padding:1px 6px; border-radius:999px; font-size:9px; font-weight:700; letter-spacing:0.5px; vertical-align:middle;">📂 HIST</span>'
-        : '';
-      var acciones = '';
-      if (c._origen === 'historico') {
-        // Las históricas no se modifican
-        acciones = '<span style="font-size:11px; color:var(--pa-gray-500); font-style:italic;">solo lectura</span>';
-      } else if (c.estado === 'AGENDADA') {
-        acciones = '<button class="saa-btn saa-btn-success saa-btn-sm" onclick="saaAgendaMarcar(\'' + c.id + '\',\'REALIZADA\')">✓ Realizada</button> ' +
-                   '<button class="saa-btn saa-btn-danger saa-btn-sm" onclick="saaAgendaMarcar(\'' + c.id + '\',\'NSP\')">✕ NSP</button>';
+
+    var hoyDay = (hoy.getFullYear() === year && hoy.getMonth() === month) ? hoy.getDate() : -1;
+
+    for (var d = 1; d <= diasMes; d++) {
+      var dow = new Date(year, month, d).getDay();
+      var esFinde = (dow === 0 || dow === 6);
+      var esHoy = (d === hoyDay);
+      var clases = 'saa-cal-cell';
+      if (esFinde) clases += ' weekend';
+      if (esHoy) clases += ' today';
+      var fechaIso = year + '-' + String(month+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+
+      html += '<div class="' + clases + '" onclick="saaAgendaCalVerDia(\'' + fechaIso + '\')">';
+      html += '<div class="saa-cal-cell-num' + (esFinde ? ' weekend' : '') + '">' + d + '</div>';
+
+      var citasDia = porDia[d] || [];
+      var maxVisible = 3;
+      var visibles = citasDia.slice(0, maxVisible);
+      visibles.forEach(function(c){
+        var pillCls = saaAgPillClass(c);
+        var apellido = '';
+        if (c.nombre) {
+          var partes = c.nombre.split(' ').filter(function(x){ return x.length > 0; });
+          if (partes.length >= 2) apellido = partes[partes.length - 2] + ' ' + partes[0].charAt(0) + '.';
+          else apellido = partes[0] || '';
+        }
+        var tooltip = (c.hora||'') + ' - ' + (c.nombre||'') + ' - ' + (c.actividad||'') + ' - ' + (c.profesionalNombre||'');
+        html += '<div class="saa-cal-pill ' + pillCls + '" title="' + tooltip.replace(/"/g,'&quot;') + '" onclick="event.stopPropagation(); saaAgendaCalVerDia(\'' + fechaIso + '\')">' +
+                '<span class="pill-hora">' + (c.hora || '') + '</span> ' + apellido + '</div>';
+      });
+      if (citasDia.length > maxVisible) {
+        html += '<div class="saa-cal-more" onclick="event.stopPropagation(); saaAgendaCalVerDia(\'' + fechaIso + '\')">+' + (citasDia.length - maxVisible) + ' más</div>';
       }
-      return '<tr' + (c._origen === 'historico' ? ' style="background:var(--pa-gray-50);"' : '') + '>' +
-        '<td><strong>' + fmtFechaCorta(c.fecha) + '</strong><div style="font-size:12px; color:var(--pa-gray-600);">' + c.hora + ' hrs</div></td>' +
-        '<td><strong>' + c.nombre + '</strong>' + histBadge + '<div style="font-size:12px; color:var(--pa-gray-600);">' + c.rut + '</div></td>' +
-        '<td>' + c.actividad + '</td>' +
-        '<td>' + c.profesionalNombre + '</td>' +
-        '<td>' + modIcon + ' ' + c.modalidad + '</td>' +
-        '<td><span class="saa-badge ' + estadoCls + '">' + c.estado + '</span></td>' +
-        '<td style="text-align:right; white-space:nowrap;">' + acciones + '</td>' +
-      '</tr>';
-    }).join('');
+      html += '</div>';
+    }
+
+    var totalCeldas = huecosAntes + diasMes;
+    var huecosFinal = (7 - (totalCeldas % 7)) % 7;
+    for (var j = 0; j < huecosFinal; j++) {
+      html += '<div class="saa-cal-cell empty"></div>';
+    }
+
+    grid.innerHTML = html;
+  };
+
+  window.saaAgendaCalVerDia = function(fechaIso) {
+    var citas = saaAgendaCitasUnidas().filter(function(c){ return c.fecha === fechaIso; });
+    citas.sort(function(a,b){ return (a.hora||'') < (b.hora||'') ? -1 : 1; });
+
+    var partes = fechaIso.split('-');
+    var fecha = new Date(parseInt(partes[0]), parseInt(partes[1])-1, parseInt(partes[2]));
+    var diasSem = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+    var meses2 = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    var titulo = diasSem[fecha.getDay()] + ' ' + fecha.getDate() + ' de ' + meses2[fecha.getMonth()] + ' ' + fecha.getFullYear();
+
+    document.getElementById('saaModalDiaTitle').textContent = '📅 ' + titulo;
+
+    var body = document.getElementById('saaModalDiaBody');
+    if (citas.length === 0) {
+      body.innerHTML = '<div style="text-align:center; padding:30px; color:var(--pa-gray-600); font-size:13px;"><div style="font-size:40px; opacity:0.3; margin-bottom:8px;">📅</div>Sin citas programadas para este día</div>';
+    } else {
+      body.innerHTML = '<div style="font-size:12px; color:var(--pa-gray-600); margin-bottom:10px;">' + citas.length + ' cita' + (citas.length===1?'':'s') + ' programada' + (citas.length===1?'':'s') + '</div>' +
+      citas.map(function(c){
+        var modCls = c.modalidad === 'Telemedicina' ? 'tele' : (c.modalidad === 'Domiciliaria' ? 'domi' : '');
+        var modIcon = {'Presencial':'🩺','Telemedicina':'📡','Domiciliaria':'🏠'}[c.modalidad] || '·';
+        var histBadge = c._origen === 'historico'
+          ? ' <span style="display:inline-block; background:var(--pa-gray-200); color:var(--pa-gray-700); padding:1px 6px; border-radius:999px; font-size:9px; font-weight:700; letter-spacing:0.5px;">📂 HIST</span>'
+          : '';
+        var estadoCls = {'AGENDADA':'info', 'REALIZADA':'ok', 'NSP':'crit', 'CANCELADA':'warn'}[c.estado] || 'info';
+        var acciones = '';
+        if (c._origen !== 'historico' && c.estado === 'AGENDADA') {
+          acciones = '<div style="margin-top:8px; display:flex; gap:6px;">' +
+            '<button class="saa-btn saa-btn-success saa-btn-sm" onclick="saaAgendaMarcar(\'' + c.id + '\',\'REALIZADA\'); saaCloseModal(\'saaModalDiaCitas\'); saaAgendaCalRender();">✓ Realizada</button>' +
+            '<button class="saa-btn saa-btn-danger saa-btn-sm" onclick="saaAgendaMarcar(\'' + c.id + '\',\'NSP\'); saaCloseModal(\'saaModalDiaCitas\'); saaAgendaCalRender();">✕ NSP</button>' +
+          '</div>';
+        }
+        return '<div class="saa-modal-dia-item">' +
+          '<div class="saa-modal-dia-time ' + modCls + '">' + (c.hora || '—') + '</div>' +
+          '<div class="saa-modal-dia-info">' +
+            '<strong>' + (c.nombre || '(sin nombre)') + histBadge + '</strong>' +
+            '<div class="meta">' +
+              'RUT: ' + (c.rut || '—') + (c.edad ? ' · ' + c.edad + ' años' : '') + '<br>' +
+              modIcon + ' ' + c.modalidad + ' · ' + c.actividad + '<br>' +
+              '👤 ' + c.profesionalNombre +
+              (c.telefono ? '<br>📞 ' + c.telefono : '') +
+              '<br><span class="saa-badge ' + estadoCls + '" style="margin-top:4px;">' + c.estado + '</span>' +
+            '</div>' +
+            acciones +
+          '</div>' +
+        '</div>';
+      }).join('');
+    }
+
+    saaOpenModal('saaModalDiaCitas');
   };
 
   window.saaAgendaMarcar = function(id, estado) {
-    // Si es un id histórico, no se puede modificar (no está en SAA.citas)
     if (typeof id === 'string' && id.indexOf('old_') === 0) {
-      alert('Esta es una cita histórica del sistema anterior — no se puede modificar desde aquí.\n\nSi necesita cambiarla, use el módulo "Agenda vieja" o gestiónela como nueva en Dación de hora.');
+      alert('Esta es una cita histórica del sistema anterior — no se puede modificar desde aquí.');
       return;
     }
     var c = SAA.citas.find(function(x){ return x.id === id; });
@@ -12432,15 +12654,14 @@ window.addEventListener('appinstalled', function() {
     c.estado = estado;
     c.modificadaEn = new Date().toISOString();
     saaSave('citas');
-    saaAgendaRender();
+    if (window.saaAgendaCalRender) saaAgendaCalRender();
   };
 
   window.saaAgendaLimpiarFiltros = function() {
-    document.getElementById('saaAgendaQ').value = '';
-    document.getElementById('saaAgendaDesde').value = '';
-    document.getElementById('saaAgendaMod').value = '';
-    saaAgendaRender();
+    if (window.saaAgendaCalRender) saaAgendaCalRender();
   };
+
+
 
   // ════════════════════════════════════════════════════
   // LISTA DE ESPERA
