@@ -2410,9 +2410,10 @@ function exportarHistorialPDF() {
     min-height: 100px;
     max-height: 200px;
     overflow-y: auto;
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.7;
-    color: var(--text2);
+    color: #0f172a;
+    font-weight: 500;
     position: relative;
   }
 
@@ -2663,9 +2664,10 @@ function exportarHistorialPDF() {
 /* ── Transcripcion en tiempo real ── */
 #screenActasInner #transcriptText {
   min-height: 60px;
-  font-size: 13px !important;
-  color: #e2d9ff !important;
+  font-size: 14px !important;
+  color: #0f172a !important;
   font-style: normal !important;
+  font-weight: 500 !important;
   line-height: 1.6;
   white-space: pre-wrap;
 }
@@ -4250,9 +4252,10 @@ body.has-shell .back-btn { display: none !important; }
               <label class="saa-label">Agrupación</label>
               <select class="saa-select" id="saaDacAgrup" onchange="saaDacionAgrupChange()">
                 <option value="">— Seleccione —</option>
-                <option value="PACTO">PACTO · Baja Visión</option>
-                <option value="PACTO_SM">PACTO · Salud Mental</option>
-                <option value="OFTALMO">Oftalmología general</option>
+                <option value="PACTO">PACTO</option>
+                <option value="BV">Baja Visión</option>
+                <option value="SM_BV">SM Baja Visión</option>
+                <option value="PACTO_SOMAT">PACTO Somatoprotesista</option>
               </select>
             </div>
             <div>
@@ -4577,6 +4580,8 @@ body.has-shell .back-btn { display: none !important; }
     .saa-cal-pill.domi { background: var(--pa-amber-500); color: var(--pa-navy-900); }
     .saa-cal-pill.nsp  { background: var(--pa-gray-500); text-decoration: line-through; opacity: 0.7; }
     .saa-cal-pill.real { background: #059669; }
+    .saa-cal-pill.aus  { background: #dc2626; }
+    .saa-cal-pill.reag { background: #7c3aed; }
     .saa-cal-pill .pill-hora { font-weight: 700; }
 
     .saa-cal-more {
@@ -5491,6 +5496,7 @@ body.has-shell .back-btn { display: none !important; }
         <div id="tsCohabitantesParentescoWrap" style="display:none">
           <div class="form-group"><label>Parentesco de Cohabitantes</label>
             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:6px">
+              <label class="check-item"><input type="checkbox" id="tsParConyuge"><span>Cónyuge</span></label>
               <label class="check-item"><input type="checkbox" id="tsParHermano"><span>Hermano/a</span></label>
               <label class="check-item"><input type="checkbox" id="tsParPadre"><span>Padre</span></label>
               <label class="check-item"><input type="checkbox" id="tsParMadre"><span>Madre</span></label>
@@ -5814,7 +5820,7 @@ body.has-shell .back-btn { display: none !important; }
   <!-- Transcripción en vivo -->
   <div class="live-transcript" id="liveTranscript">
     <div class="transcript-label">🔴 Transcripción en tiempo real</div>
-    <div id="transcriptText" style="color:var(--text3); font-style:italic; font-size:12px">
+    <div id="transcriptText">
       La transcripción aparecerá aquí mientras se graba...
     </div>
   </div>
@@ -5825,6 +5831,11 @@ body.has-shell .back-btn { display: none !important; }
       <div class="card-title">✏️ Notas adicionales</div>
       <textarea id="notas-manual" placeholder="Agrega puntos importantes, acuerdos, tareas..."></textarea>
     </div>
+
+    <!-- Botón siempre visible para guardar el acta tal cual (transcripción + notas) -->
+    <button class="btn btn-success" onclick="guardarActaGrabacion()" style="width:100%; margin-top:10px; font-size:15px; padding:14px;">
+      💾 Guardar acta
+    </button>
   </div>
 </div>
 
@@ -5911,6 +5922,7 @@ body.has-shell .back-btn { display: none !important; }
       <div class="acta-preview" id="actaPreview" contenteditable="false"></div>
 
       <div class="btn-row">
+        <button class="btn btn-success" onclick="guardarActa()">💾 Guardar acta</button>
         <button class="btn btn-danger" onclick="exportarActaWord()">📄 Descargar PDF</button>
         <button class="btn btn-secondary" onclick="compartirTexto()">📤 Compartir</button>
       </div>
@@ -8446,7 +8458,7 @@ function exportarFichaWord() {
     campo('Tipo de domicilio', g('tsTipoDomicilio')) +
     campo('Estado de la vivienda', g('tsEstadoVivienda')) +
     campo('N° cohabitantes', g('tsCohabitantes')) +
-    campo('Parentesco cohabitantes', (function(){ var p=[]; if(document.getElementById('tsParHermano')&&document.getElementById('tsParHermano').checked)p.push('Hermano/a'); if(document.getElementById('tsParPadre')&&document.getElementById('tsParPadre').checked)p.push('Padre'); if(document.getElementById('tsParMadre')&&document.getElementById('tsParMadre').checked)p.push('Madre'); if(document.getElementById('tsParAbuelo')&&document.getElementById('tsParAbuelo').checked)p.push('Abuelo/a'); if(document.getElementById('tsParTio')&&document.getElementById('tsParTio').checked)p.push('Tío/a'); if(document.getElementById('tsParPrimo')&&document.getElementById('tsParPrimo').checked)p.push('Primo/a'); return p.length?p.join(', '):'—'; })()) +
+    campo('Parentesco cohabitantes', (function(){ var p=[]; if(document.getElementById('tsParConyuge')&&document.getElementById('tsParConyuge').checked)p.push('Cónyuge'); if(document.getElementById('tsParHermano')&&document.getElementById('tsParHermano').checked)p.push('Hermano/a'); if(document.getElementById('tsParPadre')&&document.getElementById('tsParPadre').checked)p.push('Padre'); if(document.getElementById('tsParMadre')&&document.getElementById('tsParMadre').checked)p.push('Madre'); if(document.getElementById('tsParAbuelo')&&document.getElementById('tsParAbuelo').checked)p.push('Abuelo/a'); if(document.getElementById('tsParTio')&&document.getElementById('tsParTio').checked)p.push('Tío/a'); if(document.getElementById('tsParPrimo')&&document.getElementById('tsParPrimo').checked)p.push('Primo/a'); return p.length?p.join(', '):'—'; })()) +
     campo('Tenencia', g('tsTenenciaVivienda')) +
     campo('Barreras interior', g('tsBarrerasInterior')) +
     campo('Barreras entorno', g('tsBarrerasEntorno')) +
@@ -9475,6 +9487,147 @@ function editarActa() {
   preview.contentEditable = editable ? 'false' : 'true';
   if (!editable) { preview.focus(); actasToast('✏️ Modo edición activado', 'info'); }
   else { actas.actaGenerada = preview.textContent; actasToast('✅ Cambios guardados', 'success'); }
+}
+
+function guardarActa() {
+  var preview = document.getElementById('actaPreview');
+  if (!preview) return;
+  var contenido = (preview.textContent || '').trim();
+  if (!contenido) { actasToast('⚠️ No hay acta para guardar', 'error'); return; }
+
+  // Si la preview estaba en modo edición, la cerramos para fijar el texto
+  if (preview.contentEditable === 'true') {
+    preview.contentEditable = 'false';
+  }
+  actas.actaGenerada = contenido;
+
+  var nombre = ((document.getElementById('reunion-nombre')||{}).value||'').trim() || 'Reunión sin título';
+  var fecha  = ((document.getElementById('reunion-fecha')||{}).value||'') || new Date().toLocaleDateString('es-CL');
+  var hora   = ((document.getElementById('reunion-hora')||{}).value||'') || '--:--';
+
+  // Si ya existe en historial (el primer item suele ser el último generado), actualizamos.
+  // Si no, creamos uno nuevo.
+  var actualizado = false;
+  if (actas.historial && actas.historial.length > 0) {
+    var primero = actas.historial[0];
+    // Considera "mismo acta" si el nombre y fecha coinciden con el primero del historial
+    if (primero && primero.nombre === nombre && primero.fecha === fecha) {
+      primero.acta = contenido;
+      primero.hora = hora;
+      primero.integrantes = actas.integrantes.slice();
+      primero.actualizadoEn = new Date().toISOString();
+      actualizado = true;
+    }
+  }
+  if (!actualizado) {
+    var item = {
+      id: Date.now(),
+      nombre: nombre,
+      fecha: fecha,
+      hora: hora,
+      acta: contenido,
+      integrantes: actas.integrantes.slice(),
+      guardadoEn: new Date().toISOString()
+    };
+    if (!actas.historial) actas.historial = [];
+    actas.historial.unshift(item);
+    if (actas.historial.length > 20) actas.historial.pop();
+  }
+
+  apiSave('actas_historial', actas.historial);
+  if (typeof actasRenderHistorial === 'function') actasRenderHistorial();
+  if (typeof actasUpdateChips === 'function') actasUpdateChips();
+  actasToast(actualizado ? '💾 Acta actualizada en el historial' : '💾 Acta guardada en el historial', 'success');
+}
+
+// Guarda el acta DIRECTAMENTE desde la pantalla de grabación,
+// sin necesidad de generar con IA. Toma la transcripción + notas como contenido.
+function guardarActaGrabacion() {
+  var transcripcion = (actas && actas.transcripcion ? actas.transcripcion : '').trim();
+  var notasEl = document.getElementById('notas-manual');
+  var notas = notasEl ? notasEl.value.trim() : '';
+
+  if (!transcripcion && !notas) {
+    actasToast('⚠️ No hay nada que guardar. Graba o agrega notas primero.', 'error');
+    return;
+  }
+
+  var nombre = ((document.getElementById('reunion-nombre')||{}).value||'').trim() || 'Reunión sin título';
+  var fecha  = ((document.getElementById('reunion-fecha')||{}).value||'') || new Date().toLocaleDateString('es-CL');
+  var hora   = ((document.getElementById('reunion-hora')||{}).value||'') || '--:--';
+  var lugar  = ((document.getElementById('reunion-lugar')||{}).value||'').trim() || 'No especificado';
+  var participantes = (actas.integrantes||[]).map(function(i){ return '- '+i.nombre+' ('+i.cargo+') - '+i.asistencia; }).join('\n') || 'No especificados';
+
+  // Compone un acta básica con lo que haya disponible
+  var partes = [];
+  partes.push('ACTA DE REUNIÓN');
+  partes.push('══════════════════════════════════════');
+  partes.push('');
+  partes.push('REUNIÓN: ' + nombre);
+  partes.push('FECHA: '   + fecha);
+  partes.push('HORA: '    + hora);
+  partes.push('LUGAR: '   + lugar);
+  partes.push('');
+  partes.push('PARTICIPANTES:');
+  partes.push(participantes);
+  if (transcripcion) {
+    partes.push('');
+    partes.push('──────────────────────────────────────');
+    partes.push('TRANSCRIPCIÓN');
+    partes.push('──────────────────────────────────────');
+    partes.push(transcripcion);
+  }
+  if (notas) {
+    partes.push('');
+    partes.push('──────────────────────────────────────');
+    partes.push('NOTAS ADICIONALES');
+    partes.push('──────────────────────────────────────');
+    partes.push(notas);
+  }
+  var contenido = partes.join('\n');
+
+  actas.actaGenerada = contenido;
+
+  // Reusar la misma lógica de upsert que guardarActa
+  var actualizado = false;
+  if (actas.historial && actas.historial.length > 0) {
+    var primero = actas.historial[0];
+    if (primero && primero.nombre === nombre && primero.fecha === fecha) {
+      primero.acta = contenido;
+      primero.hora = hora;
+      primero.integrantes = (actas.integrantes||[]).slice();
+      primero.actualizadoEn = new Date().toISOString();
+      actualizado = true;
+    }
+  }
+  if (!actualizado) {
+    var item = {
+      id: Date.now(),
+      nombre: nombre,
+      fecha: fecha,
+      hora: hora,
+      acta: contenido,
+      integrantes: (actas.integrantes||[]).slice(),
+      guardadoEn: new Date().toISOString()
+    };
+    if (!actas.historial) actas.historial = [];
+    actas.historial.unshift(item);
+    if (actas.historial.length > 20) actas.historial.pop();
+  }
+
+  apiSave('actas_historial', actas.historial);
+  if (typeof actasRenderHistorial === 'function') actasRenderHistorial();
+  if (typeof actasUpdateChips === 'function') actasUpdateChips();
+
+  // Mostrarla también en el preview (pantalla 3) por si el usuario navega allá
+  var ap = document.getElementById('actaPreview');
+  if (ap) ap.textContent = contenido;
+  var pw = document.getElementById('actaPreviewWrap');
+  if (pw) pw.style.display = 'block';
+  var st = document.getElementById('sinTranscripcion');
+  if (st) st.style.display = 'none';
+
+  actasToast(actualizado ? '💾 Acta actualizada en el historial' : '💾 Acta guardada en el historial', 'success');
 }
 
 function exportarActaWord() { exportarPDF(); }
@@ -12041,20 +12194,24 @@ window.addEventListener('appinstalled', function() {
 
   function saaActividadesDisponibles() {
     return [
-      {agrup:'PACTO',     act:'Baja visión — consulta',     mod:'Presencial'},
-      {agrup:'PACTO',     act:'Baja visión — control',      mod:'Presencial'},
-      {agrup:'PACTO',     act:'Adaptación de ayudas ópticas', mod:'Presencial'},
-      {agrup:'PACTO',     act:'Somatoprotésica',            mod:'Presencial'},
-      {agrup:'PACTO_SM',  act:'Psicología — primera sesión',mod:'Presencial'},
-      {agrup:'PACTO_SM',  act:'Psicología — control',       mod:'Presencial'},
-      {agrup:'PACTO_SM',  act:'Psiquiatría',                mod:'Presencial'},
-      {agrup:'PACTO_SM',  act:'Terapia ocupacional',        mod:'Presencial'},
-      {agrup:'PACTO_SM',  act:'Trabajo social',             mod:'Presencial'},
-      {agrup:'OFTALMO',   act:'Oftalmología general',       mod:'Presencial'},
-      {agrup:'OFTALMO',   act:'Retina',                     mod:'Presencial'},
-      {agrup:'OFTALMO',   act:'Glaucoma',                   mod:'Presencial'},
-      {agrup:'OFTALMO',   act:'Estrabismo',                 mod:'Presencial'},
-      {agrup:'OFTALMO',   act:'Uveítis',                    mod:'Presencial'}
+      // PACTO general
+      {agrup:'PACTO',        act:'Atención PACTO',                mod:'Presencial'},
+      {agrup:'PACTO',        act:'Rescate telefónico PACTO',      mod:'Telemedicina'},
+      {agrup:'PACTO',        act:'Visita integral PACTO',         mod:'Domiciliaria'},
+      // Baja Visión
+      {agrup:'BV',           act:'Baja visión — consulta',        mod:'Presencial'},
+      {agrup:'BV',           act:'Baja visión — control',         mod:'Presencial'},
+      {agrup:'BV',           act:'Adaptación de ayudas ópticas',  mod:'Presencial'},
+      // SM Baja Visión
+      {agrup:'SM_BV',        act:'Psicología — primera sesión',   mod:'Presencial'},
+      {agrup:'SM_BV',        act:'Psicología — control',          mod:'Presencial'},
+      {agrup:'SM_BV',        act:'Psiquiatría',                   mod:'Presencial'},
+      {agrup:'SM_BV',        act:'Terapia ocupacional',           mod:'Presencial'},
+      {agrup:'SM_BV',        act:'Trabajo social',                mod:'Presencial'},
+      // PACTO Somatoprotesista
+      {agrup:'PACTO_SOMAT',  act:'Rehabilitación: prótesis fija', mod:'Presencial'},
+      {agrup:'PACTO_SOMAT',  act:'Rehabilitación: prótesis removible', mod:'Presencial'},
+      {agrup:'PACTO_SOMAT',  act:'Control somatoprotésico',       mod:'Presencial'}
     ];
   }
 
@@ -12462,6 +12619,21 @@ window.addEventListener('appinstalled', function() {
     var nuevas = (SAA.citas || []).slice();
     var viejas = (typeof agendaData !== 'undefined' && Array.isArray(agendaData)) ? agendaData : [];
     var adaptadas = viejas.map(saaAgendaAdaptarVieja).filter(function(c){ return c && c.fecha; });
+    // Cargar override de citas históricas (cambios de estado) desde localStorage si aún no está en memoria
+    if (!SAA.citasHistoricasOverride) {
+      try {
+        var raw = localStorage.getItem('saa_citas_hist_override');
+        SAA.citasHistoricasOverride = raw ? JSON.parse(raw) : {};
+      } catch(e) { SAA.citasHistoricasOverride = {}; }
+    }
+    // Aplicar overrides sobre las citas históricas adaptadas
+    var ov = SAA.citasHistoricasOverride || {};
+    adaptadas.forEach(function(c){
+      if (ov[c.id] && ov[c.id].estado) {
+        c.estado = ov[c.id].estado;
+        c.modificadaEn = ov[c.id].modificadaEn;
+      }
+    });
     return adaptadas.concat(nuevas);
   }
 
@@ -12486,6 +12658,8 @@ window.addEventListener('appinstalled', function() {
 
   function saaAgPillClass(c) {
     if (c.estado === 'NSP') return 'nsp';
+    if (c.estado === 'AUSENTE') return 'aus';
+    if (c.estado === 'REAGENDAR') return 'reag';
     if (c.estado === 'REALIZADA') return 'real';
     if (c.modalidad === 'Telemedicina') return 'tele';
     if (c.modalidad === 'Domiciliaria')  return 'domi';
@@ -12616,12 +12790,15 @@ window.addEventListener('appinstalled', function() {
         var histBadge = c._origen === 'historico'
           ? ' <span style="display:inline-block; background:var(--pa-gray-200); color:var(--pa-gray-700); padding:1px 6px; border-radius:999px; font-size:9px; font-weight:700; letter-spacing:0.5px;">📂 HIST</span>'
           : '';
-        var estadoCls = {'AGENDADA':'info', 'REALIZADA':'ok', 'NSP':'crit', 'CANCELADA':'warn'}[c.estado] || 'info';
+        var estadoCls = {'AGENDADA':'info', 'REALIZADA':'ok', 'NSP':'crit', 'CANCELADA':'warn', 'AUSENTE':'crit', 'REAGENDAR':'amber'}[c.estado] || 'info';
+        var estadoTxt = {'REAGENDAR':'REAGENDAR / LISTA ESPERA'}[c.estado] || c.estado;
         var acciones = '';
-        if (c._origen !== 'historico' && c.estado === 'AGENDADA') {
-          acciones = '<div style="margin-top:8px; display:flex; gap:6px;">' +
+        if (c.estado === 'AGENDADA') {
+          acciones = '<div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">' +
             '<button class="saa-btn saa-btn-success saa-btn-sm" onclick="saaAgendaMarcar(\'' + c.id + '\',\'REALIZADA\'); saaCloseModal(\'saaModalDiaCitas\'); saaAgendaCalRender();">✓ Realizada</button>' +
             '<button class="saa-btn saa-btn-danger saa-btn-sm" onclick="saaAgendaMarcar(\'' + c.id + '\',\'NSP\'); saaCloseModal(\'saaModalDiaCitas\'); saaAgendaCalRender();">✕ NSP</button>' +
+            '<button class="saa-btn saa-btn-danger saa-btn-sm" onclick="saaAgendaMarcar(\'' + c.id + '\',\'AUSENTE\'); saaCloseModal(\'saaModalDiaCitas\'); saaAgendaCalRender();" style="background:#dc2626;">🚫 Ausente</button>' +
+            '<button class="saa-btn saa-btn-sm" onclick="saaAgendaMarcar(\'' + c.id + '\',\'REAGENDAR\'); saaCloseModal(\'saaModalDiaCitas\'); saaAgendaCalRender();" style="background:#7c3aed; color:#fff;">🔄 Reagendar / L.Espera</button>' +
           '</div>';
         }
         return '<div class="saa-modal-dia-item">' +
@@ -12633,7 +12810,7 @@ window.addEventListener('appinstalled', function() {
               modIcon + ' ' + c.modalidad + ' · ' + c.actividad + '<br>' +
               '👤 ' + c.profesionalNombre +
               (c.telefono ? '<br>📞 ' + c.telefono : '') +
-              '<br><span class="saa-badge ' + estadoCls + '" style="margin-top:4px;">' + c.estado + '</span>' +
+              '<br><span class="saa-badge ' + estadoCls + '" style="margin-top:4px;">' + estadoTxt + '</span>' +
             '</div>' +
             acciones +
           '</div>' +
@@ -12645,16 +12822,22 @@ window.addEventListener('appinstalled', function() {
   };
 
   window.saaAgendaMarcar = function(id, estado) {
-    if (typeof id === 'string' && id.indexOf('old_') === 0) {
-      alert('Esta es una cita histórica del sistema anterior — no se puede modificar desde aquí.');
+    // Cita nueva (creada en este sistema)
+    var c = SAA.citas.find(function(x){ return x.id === id; });
+    if (c) {
+      c.estado = estado;
+      c.modificadaEn = new Date().toISOString();
+      saaSave('citas');
+      if (window.saaAgendaCalRender) saaAgendaCalRender();
       return;
     }
-    var c = SAA.citas.find(function(x){ return x.id === id; });
-    if (!c) return;
-    c.estado = estado;
-    c.modificadaEn = new Date().toISOString();
-    saaSave('citas');
-    if (window.saaAgendaCalRender) saaAgendaCalRender();
+    // Cita histórica (id empieza con 'old_'): guardamos el cambio en un mapa de overrides
+    if (typeof id === 'string' && id.indexOf('old_') === 0) {
+      if (!SAA.citasHistoricasOverride) SAA.citasHistoricasOverride = {};
+      SAA.citasHistoricasOverride[id] = { estado: estado, modificadaEn: new Date().toISOString() };
+      try { localStorage.setItem('saa_citas_hist_override', JSON.stringify(SAA.citasHistoricasOverride)); } catch(e){}
+      if (window.saaAgendaCalRender) saaAgendaCalRender();
+    }
   };
 
   window.saaAgendaLimpiarFiltros = function() {
