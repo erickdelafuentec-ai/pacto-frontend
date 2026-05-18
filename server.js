@@ -16,7 +16,10 @@ if (process.env.DATABASE_URL) {
 console.log('===============================');
 
 // ── Claves permitidas ──────────────────────────────────────────────────────────
+// IMPORTANTE: Las 9 keys originales NO se modifican (datos productivos).
+// Solo se agregaron las nuevas keys del módulo SAA al final.
 const ALLOWED_KEYS = [
+  // ── Keys originales (sistema PACTO actual) ──
   'agendaData',
   'tsData',
   'waitlistData',
@@ -26,6 +29,15 @@ const ALLOWED_KEYS = [
   'actas_historial',
   'devolucionHistorial',
   'lentesData',
+  // ── Keys nuevas (módulos SAA) ──
+  'saaCitas',          // Dación de hora — nuevas citas
+  'saaEspera',         // Lista de espera nueva
+  'saaWhatsapp',       // Historial de WhatsApp enviados
+  'saaTele',           // Teleconsultas iniciadas
+  'saaDomi',           // Visitas domiciliarias
+  'saaRecetas',        // Recetas médicas emitidas
+  'saaConsentTele',    // RUTs con consentimiento informado telemedicina
+  'paCalEventos',      // Eventos del calendario (reuniones, fechas importantes)
 ];
 
 const DEFAULT_STORE = {};
@@ -73,6 +85,7 @@ async function initDB() {
     }
 
     console.log('Base de datos inicializada correctamente');
+    console.log('Total de keys permitidas:', ALLOWED_KEYS.length);
   } catch (e) {
     console.error('Error en initDB mensaje:', e.message);
     console.error('Error en initDB stack:', e.stack);
@@ -116,6 +129,7 @@ app.get('/health', async (_req, res) => {
     time: new Date().toISOString(),
     db: pool ? 'postgres' : 'memory',
     DATABASE_URL_set: !!process.env.DATABASE_URL,
+    allowed_keys: ALLOWED_KEYS.length,
   };
   if (pool) {
     try {
@@ -142,7 +156,7 @@ app.get('/api/storage', async (_req, res) => {
 app.post('/api/storage/:key', async (req, res) => {
   const { key } = req.params;
   if (!ALLOWED_KEYS.includes(key)) {
-    return res.status(400).json({ ok: false, error: 'Clave no permitida' });
+    return res.status(400).json({ ok: false, error: 'Clave no permitida', key: key });
   }
   try {
     const value = typeof req.body.value === 'undefined' ? [] : req.body.value;
