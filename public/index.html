@@ -6596,12 +6596,167 @@ async function apiSave(key, value) {
     await fetch('/api/storage/' + key, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ value: value })
+      body: JSON.stringify({ value: value, sender: window._saaSseClientId || null })
     });
   } catch(e) {
     console.warn('apiSave error:', key, e);
   }
 }
+
+// ═══════════════════════════════════════════════════════════════
+// SSE — Sincronización en tiempo real entre dispositivos
+// ═══════════════════════════════════════════════════════════════
+window._saaSseClientId = 'cli_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+window._saaSseSource = null;
+window._saaSseReconnectTimer = null;
+window._saaSseReconnectDelay = 2000; // empieza en 2s y crece
+
+// Crear el indicador visual de estado de conexión
+function _saaSseEnsureBanner() {
+  if (document.getElementById('saaSseBanner')) return;
+  var banner = document.createElement('div');
+  banner.id = 'saaSseBanner';
+  banner.style.cssText = 'position:fixed; bottom:14px; left:14px; z-index:99997; ' +
+    'padding:6px 12px; border-radius:999px; font-size:11px; font-weight:600; ' +
+    'background:#dcfce7; color:#166534; box-shadow:0 2px 10px rgba(0,0,0,0.15); ' +
+    'display:flex; align-items:center; gap:6px; cursor:default; ' +
+    'font-family:system-ui, -apple-system, sans-serif; transition:all 0.3s;';
+  banner.innerHTML = '<span id="saaSseDot" style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#16a34a;"></span>' +
+                     '<span id="saaSseText">En vivo</span>';
+  document.body.appendChild(banner);
+}
+function _saaSseSetStatus(text, color, dotColor) {
+  _saaSseEnsureBanner();
+  var b = document.getElementById('saaSseBanner');
+  var d = document.getElementById('saaSseDot');
+  var t = document.getElementById('saaSseText');
+  if (b) b.style.background = color === 'green' ? '#dcfce7' : (color === 'red' ? '#fee2e2' : '#fef3c7');
+  if (b) b.style.color = color === 'green' ? '#166534' : (color === 'red' ? '#991b1b' : '#854f0b');
+  if (d) d.style.background = dotColor;
+  if (t) t.textContent = text;
+}
+
+// Re-renderizar la pantalla actual cuando llegan cambios
+function _saaSseRefreshUI(key) {
+  // Mapeo de keys a funciones que las usan en el render actual
+  try {
+    if (key === 'saaCitas' || key === 'saa_citas_hist_override' || key === 'agendaData') {
+      if (typeof saaAgendaCalRender === 'function') saaAgendaCalRender();
+      // Si el modal del día está abierto, re-renderizarlo
+      var modalDia = document.getElementById('saaModalDiaCitas');
+      if (modalDia && modalDia.classList.contains('open')) {
+        var fechaActiva = window._saaUltimaFechaModal;
+        if (fechaActiva && typeof saaAgendaCalVerDia === 'function') saaAgendaCalVerDia(fechaActiva);
+      }
+    }
+    if (key === 'saaEspera') {
+      if (typeof saaEsperaRender === 'function') saaEsperaRender();
+    }
+    if (key === 'saaChats') {
+      if (typeof saaChatRenderList === 'function') saaChatRenderList();
+    }
+    if (key === 'saaEncuentros') {
+      // Si la ficha del paciente está abierta, refrescar
+      if (window._saaFichaCtx && typeof saaRenderFichaPaciente === 'function') {
+        var pestaña = (document.querySelector('#saaModalFichaPaciente button[style*="border-bottom:3px solid"]') || {}).textContent || '';
+        var p = pestaña.indexOf('Historia') >= 0 ? 'historia' : 'resumen';
+        saaRenderFichaPaciente('__use_last__', null, null, null, p);
+      }
+    }
+    if (key === 'saa_pacientes_override') {
+      // Re-renderizar dación si el paciente actual está cargado
+      if (typeof dacionPaciente !== 'undefined' && dacionPaciente && typeof saaDacionRenderPaciente === 'function') {
+        saaDacionRenderPaciente();
+      }
+    }
+  } catch(e) {
+    console.warn('Error refrescando UI:', key, e);
+  }
+}
+
+// Pequeño toast cuando llega un cambio
+function _saaSseToast(texto) {
+  var t = document.createElement('div');
+  t.style.cssText = 'position:fixed; bottom:50px; left:14px; z-index:99997; ' +
+    'background:#1565c0; color:#fff; padding:10px 14px; border-radius:8px; ' +
+    'font-size:12px; font-weight:600; box-shadow:0 4px 14px rgba(0,0,0,0.2); ' +
+    'opacity:0; transition:opacity 0.3s; pointer-events:none;';
+  t.textContent = '🔄 ' + texto;
+  document.body.appendChild(t);
+  setTimeout(function(){ t.style.opacity = '1'; }, 10);
+  setTimeout(function(){
+    t.style.opacity = '0';
+    setTimeout(function(){ if (t.parentNode) t.parentNode.removeChild(t); }, 400);
+  }, 2500);
+}
+
+// Conectarse al stream SSE
+function saaSseConnect() {
+  if (window._saaSseSource) {
+    try { window._saaSseSource.close(); } catch(e){}
+  }
+  _saaSseSetStatus('Conectando…', 'yellow', '#f59e0b');
+
+  try {
+    var es = new EventSource('/api/stream');
+    window._saaSseSource = es;
+
+    es.addEventListener('connected', function(ev){
+      console.log('[SSE] Conexión establecida');
+      _saaSseSetStatus('En vivo', 'green', '#16a34a');
+      window._saaSseReconnectDelay = 2000; // resetear backoff
+    });
+
+    es.addEventListener('change', async function(ev){
+      try {
+        var data = JSON.parse(ev.data);
+        // Si el cambio lo originamos nosotros, no recargar (ya lo tenemos)
+        if (data.sender && data.sender === window._saaSseClientId) return;
+        console.log('[SSE] Cambio recibido:', data.key);
+        // Recargar TODOS los datos para asegurar coherencia
+        if (typeof apiLoadAll === 'function') {
+          await apiLoadAll();
+          // Recargar también lo de SAA desde localStorage (porque apiLoadAll lo escribe ahí)
+          if (typeof saaLoad === 'function') saaLoad();
+          _saaSseRefreshUI(data.key);
+          _saaSseToast('Datos actualizados');
+        }
+      } catch(e) {
+        console.warn('[SSE] Error procesando cambio:', e);
+      }
+    });
+
+    es.onerror = function(){
+      console.warn('[SSE] Conexión perdida, reintentando...');
+      _saaSseSetStatus('Reconectando…', 'red', '#dc2626');
+      try { es.close(); } catch(e){}
+      window._saaSseSource = null;
+      // Reconexión exponencial: 2s, 4s, 8s, 16s, máx 30s
+      clearTimeout(window._saaSseReconnectTimer);
+      window._saaSseReconnectTimer = setTimeout(saaSseConnect, window._saaSseReconnectDelay);
+      window._saaSseReconnectDelay = Math.min(window._saaSseReconnectDelay * 2, 30000);
+    };
+  } catch(e) {
+    console.warn('[SSE] No se pudo conectar:', e);
+    _saaSseSetStatus('Sin conexión', 'red', '#dc2626');
+  }
+}
+
+// Iniciar la conexión cuando la página esté lista
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(saaSseConnect, 800); });
+} else {
+  setTimeout(saaSseConnect, 800);
+}
+
+// Reconectar cuando la pestaña vuelva a estar visible (ahorra batería)
+document.addEventListener('visibilitychange', function(){
+  if (document.visibilityState === 'visible' && !window._saaSseSource) {
+    saaSseConnect();
+  }
+});
+
+window.saaSseReconnect = saaSseConnect; // expuesto para que sea llamable manualmente
 
 async function apiLoadAll() {
   try {
@@ -13353,6 +13508,7 @@ window.addEventListener('appinstalled', function() {
   };
 
   window.saaAgendaCalVerDia = function(fechaIso) {
+    window._saaUltimaFechaModal = fechaIso;
     var citas = saaAgendaCitasUnidas().filter(function(c){ return c.fecha === fechaIso; });
     citas.sort(function(a,b){ return (a.hora||'') < (b.hora||'') ? -1 : 1; });
 
