@@ -12677,13 +12677,11 @@ window.addEventListener('appinstalled', function() {
   // Aplica los overrides guardados (teléfono u otros campos editados manualmente) sobre un paciente
   function saaAplicarOverridePaciente(p) {
     if (!p || !p.rut) return;
-    // Cargar overrides desde memoria o localStorage
-    if (!SAA.pacientesOverride) {
-      try {
-        var raw = localStorage.getItem('saa_pacientes_override');
-        SAA.pacientesOverride = raw ? JSON.parse(raw) : {};
-      } catch(e) { SAA.pacientesOverride = {}; }
-    }
+    // Cargar SIEMPRE desde localStorage para reflejar cambios del SSE
+    try {
+      var raw = localStorage.getItem('saa_pacientes_override');
+      SAA.pacientesOverride = raw ? JSON.parse(raw) : {};
+    } catch(e) { SAA.pacientesOverride = SAA.pacientesOverride || {}; }
     var ov = SAA.pacientesOverride[p.rut];
     if (!ov) return;
     // Aplicar cada campo del override que tenga valor definido
@@ -13356,13 +13354,13 @@ window.addEventListener('appinstalled', function() {
     var nuevas = (SAA.citas || []).slice();
     var viejas = (typeof agendaData !== 'undefined' && Array.isArray(agendaData)) ? agendaData : [];
     var adaptadas = viejas.map(saaAgendaAdaptarVieja).filter(function(c){ return c && c.fecha; });
-    // Cargar override de citas históricas (cambios de estado) desde localStorage si aún no está en memoria
-    if (!SAA.citasHistoricasOverride) {
-      try {
-        var raw = localStorage.getItem('saa_citas_hist_override');
-        SAA.citasHistoricasOverride = raw ? JSON.parse(raw) : {};
-      } catch(e) { SAA.citasHistoricasOverride = {}; }
-    }
+    // Cargar override SIEMPRE desde localStorage (no solo la primera vez)
+    // Esto es necesario porque después de un cambio vía SSE, localStorage se actualiza
+    // pero SAA.citasHistoricasOverride en memoria queda con el valor viejo
+    try {
+      var raw = localStorage.getItem('saa_citas_hist_override');
+      SAA.citasHistoricasOverride = raw ? JSON.parse(raw) : {};
+    } catch(e) { SAA.citasHistoricasOverride = SAA.citasHistoricasOverride || {}; }
     // Aplicar overrides sobre las citas históricas adaptadas
     var ov = SAA.citasHistoricasOverride || {};
     // Primero filtrar las que fueron marcadas como eliminadas
@@ -13887,13 +13885,23 @@ window.addEventListener('appinstalled', function() {
   };
 
   // Devuelve el encuentro clínico asociado a una citaId, o null
+  // Recarga los encuentros desde localStorage (útil después de un cambio vía SSE)
+  function saaRecargarEncuentros() {
+    try {
+      var raw = localStorage.getItem('saaEncuentros');
+      SAA.encuentros = raw ? JSON.parse(raw) : [];
+    } catch(e) { SAA.encuentros = SAA.encuentros || []; }
+  }
+
   window.saaGetEncuentroPorCita = function(citaId) {
+    saaRecargarEncuentros();
     return (SAA.encuentros || []).find(function(e){ return e.citaId === citaId; }) || null;
   };
 
   // Devuelve todos los encuentros de un RUT, ordenados desc por fecha
   window.saaGetEncuentrosPorRut = function(rut) {
     if (!rut) return [];
+    saaRecargarEncuentros();
     return (SAA.encuentros || [])
       .filter(function(e){ return e.rut === rut; })
       .sort(function(a,b){
