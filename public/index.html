@@ -3374,6 +3374,9 @@ body.has-shell .back-btn { display: none !important; }
     </button>
 
     <div class="pa-sb-section">Clínico</div>
+    <button class="pa-sb-item" data-view="screenHistoriaClinica" onclick="goTo('screenHistoriaClinica')">
+      <span class="pa-sb-icon">📚</span><span>Historia clínica</span>
+    </button>
     <button class="pa-sb-item" data-view="screenTS" onclick="goTo('screenTS')">
       <span class="pa-sb-icon">📝</span><span>Registro T.S.</span>
     </button>
@@ -3456,6 +3459,13 @@ body.has-shell .back-btn { display: none !important; }
             <div class="pa-quick-text">
               <h3>Recetas</h3>
               <p>Emitir receta médica</p>
+            </div>
+          </div>
+          <div class="pa-quick-card" onclick="goTo('screenHistoriaClinica')">
+            <div class="pa-quick-icon" style="background:#e0e7ff;color:#3730a3">📚</div>
+            <div class="pa-quick-text">
+              <h3>Historia clínica</h3>
+              <p>Consultar paciente por RUT</p>
             </div>
           </div>
         </div>
@@ -4352,6 +4362,63 @@ body.has-shell .back-btn { display: none !important; }
     </div>
 
     <!-- ════════ MODAL: Citas del día (al hacer click en una celda) ════════ -->
+    <!-- Modal: Registrar atención clínica (Motivo / Evolución / Plan + Observaciones) -->
+    <div class="saa-modal-bg" id="saaModalAtencion">
+      <div class="saa-modal" style="max-width:680px;">
+        <div class="saa-modal-head">
+          <h3 id="saaAtencionTitle">📋 Registrar atención clínica</h3>
+          <button class="saa-modal-close" onclick="saaCloseModal('saaModalAtencion')">✕</button>
+        </div>
+        <div class="saa-modal-body">
+
+          <!-- Resumen del paciente y la cita -->
+          <div id="saaAtencionResumen" style="background:#eff6ff; border-left:4px solid #1565c0; padding:12px 14px; border-radius:8px; margin-bottom:16px; font-size:12px;"></div>
+
+          <!-- Motivo -->
+          <label class="saa-label">
+            <span style="color:#1565c0; font-weight:700;">M</span>otivo de consulta
+            <span style="color:#9ca3af; font-weight:400; font-size:11px;">¿Por qué consulta el paciente?</span>
+          </label>
+          <textarea class="saa-input" id="saaAtMotivo" placeholder="Ej: Control DM2 / Disminución de visión / Cefalea recurrente..." style="min-height:60px; resize:vertical;"></textarea>
+
+          <!-- Evolución -->
+          <label class="saa-label" style="margin-top:12px;">
+            <span style="color:#1565c0; font-weight:700;">E</span>volución
+            <span style="color:#9ca3af; font-weight:400; font-size:11px;">¿Cómo se encuentra el paciente?</span>
+          </label>
+          <textarea class="saa-input" id="saaAtEvolucion" placeholder="Ej: Paciente compensado. Continúa con tratamiento habitual. Sin signos de alarma..." style="min-height:80px; resize:vertical;"></textarea>
+
+          <!-- Plan -->
+          <label class="saa-label" style="margin-top:12px;">
+            <span style="color:#1565c0; font-weight:700;">P</span>lan / Conducta
+            <span style="color:#9ca3af; font-weight:400; font-size:11px;">¿Qué se acuerda hacer?</span>
+          </label>
+          <textarea class="saa-input" id="saaAtPlan" placeholder="Ej: Control en 30 días. Mantener tratamiento. Solicitar exámenes..." style="min-height:60px; resize:vertical;"></textarea>
+
+          <!-- Observaciones libres -->
+          <label class="saa-label" style="margin-top:12px;">📝 Observaciones / Comentarios adicionales</label>
+          <textarea class="saa-input" id="saaAtObs" placeholder="Comentarios libres sobre el paciente, contexto, advertencias, etc." style="min-height:60px; resize:vertical;"></textarea>
+
+          <!-- Diagnóstico -->
+          <div class="saa-row" style="margin-top:12px;">
+            <div style="flex:2;">
+              <label class="saa-label">Diagnóstico principal</label>
+              <input class="saa-input" id="saaAtDx" placeholder="Ej: Diabetes Mellitus tipo 2">
+            </div>
+            <div>
+              <label class="saa-label">Código CIE-10</label>
+              <input class="saa-input" id="saaAtCie" placeholder="Ej: E11">
+            </div>
+          </div>
+
+        </div>
+        <div class="saa-modal-foot">
+          <button class="saa-btn saa-btn-ghost" onclick="saaCloseModal('saaModalAtencion')">Cancelar</button>
+          <button class="saa-btn saa-btn-primary" onclick="saaAtencionGuardar()">💾 Guardar atención</button>
+        </div>
+      </div>
+    </div>
+
     <div class="saa-modal-bg" id="saaModalDiaCitas">
       <div class="saa-modal" style="max-width:680px">
         <div class="saa-modal-head">
@@ -4369,6 +4436,41 @@ body.has-shell .back-btn { display: none !important; }
 
 
     <!-- ════════ SCREEN: LISTA DE ESPERA ════════ -->
+    <!-- ════════════════════════════════════════════════════════════
+         HISTORIA CLÍNICA — Buscador por RUT
+         ════════════════════════════════════════════════════════════ -->
+    <div class="screen" id="screenHistoriaClinica">
+      <div class="pa-page-header">
+        <div>
+          <h1>📚 Historia clínica</h1>
+          <div class="pa-page-sub">Consulta la historia completa de cualquier paciente por RUT</div>
+        </div>
+      </div>
+
+      <!-- Buscador grande -->
+      <div style="background:#fff; border:1px solid var(--pa-gray-200); border-radius:14px; padding:24px; box-shadow:0 2px 8px rgba(0,0,0,0.04); margin-bottom:18px;">
+        <div style="font-size:13px; font-weight:700; color:#1565c0; letter-spacing:0.8px; text-transform:uppercase; margin-bottom:12px;">🔍 Buscar paciente</div>
+        <div class="saa-row" style="align-items:flex-end;">
+          <div style="flex:2;">
+            <label class="saa-label">RUT del paciente</label>
+            <input class="saa-input" id="saaHCRut" placeholder="12345678-9"
+                   onkeydown="if(event.key==='Enter'){event.preventDefault(); saaHCBuscar();}"
+                   style="font-size:16px; padding:12px 14px;">
+          </div>
+          <div>
+            <button class="saa-btn saa-btn-primary" onclick="saaHCBuscar()" style="padding:12px 24px; font-size:14px;">🔍 Buscar</button>
+          </div>
+          <div>
+            <button class="saa-btn saa-btn-ghost" onclick="saaHCLimpiar()" style="padding:12px 16px;">↻ Limpiar</button>
+          </div>
+        </div>
+        <div id="saaHCBuscarStatus" style="margin-top:10px; font-size:12px;"></div>
+      </div>
+
+      <!-- Resultado: ficha del paciente -->
+      <div id="saaHCResultado"></div>
+    </div>
+
     <div class="screen" id="screenEspera">
       <div class="pa-page-header">
         <div>
@@ -6516,7 +6618,7 @@ async function apiLoadAll() {
     devolucionData.historial = data.devolucionHistorial || [];
     // ── Nuevas keys SAA: copiar del servidor al localStorage ─────────
     // Los módulos SAA leen desde localStorage al inicializar (saaLoad)
-    var newKeys = ['saaCitas','saaEspera','saaWhatsapp','saaTele','saaDomi','saaRecetas','saaConsentTele','paCalEventos','saaChats','saaNumeroPacto','saa_citas_hist_override','saa_pacientes_override'];
+    var newKeys = ['saaCitas','saaEspera','saaWhatsapp','saaTele','saaDomi','saaRecetas','saaConsentTele','paCalEventos','saaChats','saaNumeroPacto','saa_citas_hist_override','saa_pacientes_override','saaEncuentros'];
     newKeys.forEach(function(k){
       if (data[k] !== undefined && data[k] !== null) {
         try {
@@ -12169,7 +12271,8 @@ window.addEventListener('appinstalled', function() {
     tele:     [],
     domi:     [],
     recetas:  [],
-    consentTele: []  // RUTs con consentimiento informado vigente
+    consentTele: [],  // RUTs con consentimiento informado vigente
+    encuentros: []    // Registros clínicos por cita (motivo, evolución, plan, obs)
   };
 
   function saaLoad() {
@@ -12182,12 +12285,14 @@ window.addEventListener('appinstalled', function() {
     try { SAA.consentTele = JSON.parse(localStorage.getItem('saaConsentTele') || '[]'); } catch(e){}
     try { SAA.chats    = JSON.parse(localStorage.getItem('saaChats')   || '{}'); } catch(e){}
     try { SAA.numeroPacto = localStorage.getItem('saaNumeroPacto') || ''; } catch(e){}
+    try { SAA.encuentros = JSON.parse(localStorage.getItem('saaEncuentros') || '[]'); } catch(e){}
   }
   function saaSave(key) {
     var mapping = {
       citas: 'saaCitas', espera: 'saaEspera', whatsapp: 'saaWhatsapp',
       tele: 'saaTele', domi: 'saaDomi', recetas: 'saaRecetas',
-      consentTele: 'saaConsentTele', chats: 'saaChats'
+      consentTele: 'saaConsentTele', chats: 'saaChats',
+      encuentros: 'saaEncuentros'
     };
     var lsKey = mapping[key];
     if (!lsKey) return;
@@ -13341,7 +13446,306 @@ window.addEventListener('appinstalled', function() {
     saaOpenModal('saaModalDiaCitas');
   };
 
-  // ─── Ficha clínica del paciente ───
+  // ═══════════════════════════════════════════════════════════════
+  // HISTORIA CLÍNICA — Buscador por RUT (módulo independiente)
+  // ═══════════════════════════════════════════════════════════════
+
+  window.saaHCBuscar = function() {
+    var inp = document.getElementById('saaHCRut');
+    var status = document.getElementById('saaHCBuscarStatus');
+    var resultado = document.getElementById('saaHCResultado');
+    var raw = (inp.value || '').trim();
+    if (!raw) {
+      status.innerHTML = '<span style="color:#dc2626;">⚠️ Ingresa un RUT primero.</span>';
+      resultado.innerHTML = '';
+      return;
+    }
+    var rutFmt = (typeof formatearRut === 'function') ? formatearRut(raw) : raw;
+    if (typeof validaRutDV === 'function' && !validaRutDV(rutFmt)) {
+      status.innerHTML = '<span style="color:#dc2626;">⚠️ RUT inválido. El dígito verificador no coincide.</span>';
+      resultado.innerHTML = '';
+      return;
+    }
+    inp.value = rutFmt;
+
+    // 1. Datos del paciente: HGGB → SAA.pacientes → buscar en citas
+    var paciente = null;
+    if (window.HGGB_PAC_ready && typeof window.hggbBuscarPorRut === 'function') {
+      var hggb = window.hggbBuscarPorRut(rutFmt);
+      if (hggb) {
+        paciente = {
+          rut: rutFmt, nombre: hggb.n, edad: hggb.e, sexo: hggb.s,
+          comuna: hggb.c, direccion: hggb.d, telefono: hggb.t, prevision: hggb.p
+        };
+      }
+    }
+    if (!paciente) {
+      // Buscar en SAA.citas o SAA.espera para construir el paciente
+      var todasCitas = (typeof saaAgendaCitasUnidas === 'function') ? saaAgendaCitasUnidas() : (SAA.citas || []);
+      var citaPac = todasCitas.find(function(c){ return c.rut === rutFmt; });
+      if (citaPac) {
+        paciente = {
+          rut: rutFmt, nombre: citaPac.nombre, edad: citaPac.edad,
+          comuna: citaPac.comuna, telefono: citaPac.telefono
+        };
+      } else {
+        var espPac = (SAA.espera || []).find(function(e){ return e.rut === rutFmt; });
+        if (espPac) {
+          paciente = {
+            rut: rutFmt, nombre: espPac.nombre, edad: espPac.edad,
+            comuna: espPac.comuna, telefono: espPac.telefono
+          };
+        }
+      }
+    }
+    if (!paciente) {
+      status.innerHTML = '<div style="background:#fee2e2; color:#991b1b; padding:8px 12px; border-radius:6px; border-left:3px solid #dc2626;">' +
+        '✕ <strong>RUT no encontrado.</strong> No hay registros para este paciente en el sistema.' +
+      '</div>';
+      resultado.innerHTML = '';
+      return;
+    }
+
+    // Aplicar override (teléfono editado, etc.)
+    if (typeof saaAplicarOverridePaciente === 'function') {
+      saaAplicarOverridePaciente(paciente);
+    }
+
+    // 2. Historia: TODAS las citas del paciente
+    var todasCitas2 = (typeof saaAgendaCitasUnidas === 'function') ? saaAgendaCitasUnidas() : (SAA.citas || []);
+    var citasPac = todasCitas2
+      .filter(function(c){ return c.rut === rutFmt; })
+      .sort(function(a,b){
+        var fa = (a.fecha||'') + ' ' + (a.hora||'');
+        var fb = (b.fecha||'') + ' ' + (b.hora||'');
+        return fa < fb ? 1 : -1;
+      });
+
+    var totalRealizadas = citasPac.filter(function(c){ return c.estado === 'REALIZADA'; }).length;
+    var totalNSP        = citasPac.filter(function(c){ return c.estado === 'NSP' || c.estado === 'AUSENTE'; }).length;
+    var totalAgendadas  = citasPac.filter(function(c){ return c.estado === 'AGENDADA'; }).length;
+
+    status.innerHTML = '<div style="background:#dcfce7; color:#166534; padding:8px 12px; border-radius:6px; border-left:3px solid #16a34a;">' +
+      '✓ <strong>' + paciente.nombre + '</strong> · ' + citasPac.length + ' encuentro' + (citasPac.length===1?'':'s') + ' registrado' + (citasPac.length===1?'':'s') +
+    '</div>';
+
+    // Renderizar ficha completa del paciente
+    saaHCRenderFichaCompleta(paciente, citasPac, totalRealizadas, totalNSP, totalAgendadas);
+  };
+
+  window.saaHCLimpiar = function() {
+    document.getElementById('saaHCRut').value = '';
+    document.getElementById('saaHCBuscarStatus').innerHTML = '';
+    document.getElementById('saaHCResultado').innerHTML = '';
+    setTimeout(function(){ var i = document.getElementById('saaHCRut'); if (i) i.focus(); }, 50);
+  };
+
+  // Renderiza la ficha completa (resumen + historia con encuentros clínicos)
+  function saaHCRenderFichaCompleta(paciente, citasPac, totalRealizadas, totalNSP, totalAgendadas) {
+    var iniciales = '?';
+    if (paciente.nombre) {
+      var partes = paciente.nombre.split(' ').filter(function(x){ return x; });
+      if (partes.length >= 2) iniciales = (partes[0].charAt(0) + partes[partes.length-1].charAt(0)).toUpperCase();
+      else if (partes[0]) iniciales = partes[0].substring(0,2).toUpperCase();
+    }
+    var sexoTxt = paciente.sexo === 'F' ? '♀ Femenino' : (paciente.sexo === 'M' ? '♂ Masculino' : '—');
+
+    // Encabezado tipo ficha (igual al modal)
+    var html = '<div style="background:#fff; border-radius:14px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.04); border:1px solid var(--pa-gray-200);">' +
+      // Header
+      '<div style="background:linear-gradient(135deg, #0d47a1 0%, #1565c0 100%); padding:24px; color:#fff;">' +
+        '<div style="display:flex; gap:16px; align-items:flex-start;">' +
+          '<div style="width:64px; height:64px; background:#f59e0b; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:700; color:#fff; flex-shrink:0;">' + iniciales + '</div>' +
+          '<div style="flex:1;">' +
+            '<div style="font-size:20px; font-weight:700; margin-bottom:4px;">' + (paciente.nombre || '(sin nombre)') + '</div>' +
+            '<div style="font-size:12px; opacity:0.9; line-height:1.6;">' +
+              (paciente.rut || '—') +
+              (paciente.edad ? ' · ' + paciente.edad + ' años' : '') +
+              ' · ' + sexoTxt +
+              (paciente.comuna ? ' · 📍 ' + paciente.comuna : '') +
+              (paciente.prevision ? ' · 💳 ' + paciente.prevision : '') +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+
+      // Tarjetas resumen
+      '<div style="padding:20px; display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:14px; border-bottom:1px solid var(--pa-gray-200);">' +
+        // Contacto
+        '<div style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; padding:12px 14px;">' +
+          '<div style="font-size:11px; color:#6b7280; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; margin-bottom:6px;">Contacto</div>' +
+          '<div style="font-size:12px; color:#1f2937; line-height:1.7;">' +
+            (paciente.telefono ? '📞 ' + paciente.telefono : '<span style="color:#9ca3af; font-style:italic;">Sin teléfono</span>') +
+          '</div>' +
+        '</div>' +
+        // Atenciones realizadas
+        '<div style="background:#dcfce7; border:1px solid #86efac; border-radius:8px; padding:12px 14px;">' +
+          '<div style="font-size:11px; color:#166534; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; margin-bottom:6px;">Realizadas</div>' +
+          '<div style="font-size:22px; color:#15803d; font-weight:700;">' + totalRealizadas + '</div>' +
+        '</div>' +
+        // Próximas
+        '<div style="background:#dbeafe; border:1px solid #93c5fd; border-radius:8px; padding:12px 14px;">' +
+          '<div style="font-size:11px; color:#1e40af; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; margin-bottom:6px;">Agendadas</div>' +
+          '<div style="font-size:22px; color:#1d4ed8; font-weight:700;">' + totalAgendadas + '</div>' +
+        '</div>' +
+        // NSP / Ausente
+        '<div style="background:#fef3c7; border:1px solid #fcd34d; border-radius:8px; padding:12px 14px;">' +
+          '<div style="font-size:11px; color:#854f0b; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; margin-bottom:6px;">NSP / Ausente</div>' +
+          '<div style="font-size:22px; color:#a16207; font-weight:700;">' + totalNSP + '</div>' +
+        '</div>' +
+      '</div>' +
+
+      // Sección Historia
+      '<div style="padding:20px;">' +
+        '<div style="font-size:14px; font-weight:700; color:#0f172a; margin-bottom:12px;">📚 Historia clínica completa</div>';
+
+    if (citasPac.length === 0) {
+      html += '<div style="text-align:center; padding:30px 20px; color:#6b7280;">' +
+        '<div style="font-size:36px; opacity:0.3; margin-bottom:10px;">📚</div>' +
+        '<strong style="display:block; font-size:14px; margin-bottom:4px;">Sin encuentros registrados</strong>' +
+        '<span style="font-size:12px;">Este paciente aún no tiene citas en el sistema.</span>' +
+      '</div>';
+    } else {
+      // Reutilizamos la función saaFichaTabHistoria (ya está hecha y muestra Motivo/Evolución/Plan/Obs)
+      html += saaFichaTabHistoria(citasPac);
+    }
+
+    html += '</div></div>';
+    document.getElementById('saaHCResultado').innerHTML = html;
+  }
+  // ═══════════════════════════════════════════════════════════════
+
+  // Abre el modal de registro de atención clínica para una cita
+  window.saaAbrirAtencion = function(citaId) {
+    var cita = (typeof saaAgendaCitasUnidas === 'function')
+      ? saaAgendaCitasUnidas().find(function(x){ return x.id === citaId; })
+      : null;
+    if (!cita) { alert('No se encontró la cita.'); return; }
+
+    // Buscar si ya existe un encuentro registrado para esta cita
+    var enc = (SAA.encuentros || []).find(function(e){ return e.citaId === citaId; });
+
+    // Llenar el modal
+    document.getElementById('saaAtMotivo').value    = enc ? (enc.motivo || '')    : '';
+    document.getElementById('saaAtEvolucion').value = enc ? (enc.evolucion || '') : '';
+    document.getElementById('saaAtPlan').value      = enc ? (enc.plan || '')      : '';
+    document.getElementById('saaAtObs').value       = enc ? (enc.observaciones || '') : '';
+    document.getElementById('saaAtDx').value        = enc ? (enc.diagnostico || '')   : (cita.motivo || '');
+    document.getElementById('saaAtCie').value       = enc ? (enc.cie10 || '')        : '';
+
+    // Resumen del paciente y la cita
+    var modIcon = {'Presencial':'🩺','Telemedicina':'📡','Domiciliaria':'🏠'}[cita.modalidad] || '·';
+    var resumen = document.getElementById('saaAtencionResumen');
+    if (resumen) {
+      resumen.innerHTML =
+        '<div style="font-weight:700; color:#0f172a; font-size:14px; margin-bottom:4px;">' + (cita.nombre || '(sin nombre)') + '</div>' +
+        '<div style="color:#374151;">' +
+          'RUT: ' + (cita.rut || '—') + (cita.edad ? ' · ' + cita.edad + ' años' : '') + '<br>' +
+          (typeof fmtFecha === 'function' ? fmtFecha(cita.fecha) : cita.fecha) + ' · ' + (cita.hora || '—') + ' hrs · ' + modIcon + ' ' + cita.modalidad + '<br>' +
+          (cita.actividad ? '🩺 ' + cita.actividad + '<br>' : '') +
+          (cita.profesionalNombre ? '👤 ' + cita.profesionalNombre : '') +
+        '</div>';
+    }
+
+    // Guardar contexto para usar al guardar
+    window._saaAtencionCtx = { citaId: citaId, cita: cita, encuentroExistente: enc };
+
+    saaOpenModal('saaModalAtencion');
+    setTimeout(function(){ var t = document.getElementById('saaAtMotivo'); if (t) t.focus(); }, 80);
+  };
+
+  // Guarda la atención clínica (nueva o modificada) en SAA.encuentros y sincroniza a Railway
+  window.saaAtencionGuardar = function() {
+    var ctx = window._saaAtencionCtx;
+    if (!ctx || !ctx.cita) { alert('No hay cita seleccionada.'); return; }
+
+    var motivo    = (document.getElementById('saaAtMotivo').value || '').trim();
+    var evolucion = (document.getElementById('saaAtEvolucion').value || '').trim();
+    var plan      = (document.getElementById('saaAtPlan').value || '').trim();
+    var obs       = (document.getElementById('saaAtObs').value || '').trim();
+    var dx        = (document.getElementById('saaAtDx').value || '').trim();
+    var cie       = (document.getElementById('saaAtCie').value || '').trim().toUpperCase();
+
+    if (!motivo && !evolucion && !plan && !obs) {
+      if (!confirm('Todos los campos están vacíos. ¿Igual quieres guardar?')) return;
+    }
+
+    if (!SAA.encuentros) SAA.encuentros = [];
+
+    if (ctx.encuentroExistente) {
+      // Actualizar el existente
+      ctx.encuentroExistente.motivo        = motivo;
+      ctx.encuentroExistente.evolucion     = evolucion;
+      ctx.encuentroExistente.plan          = plan;
+      ctx.encuentroExistente.observaciones = obs;
+      ctx.encuentroExistente.diagnostico   = dx;
+      ctx.encuentroExistente.cie10         = cie;
+      ctx.encuentroExistente.actualizadoEn = new Date().toISOString();
+    } else {
+      // Crear nuevo
+      SAA.encuentros.push({
+        id: 'enc_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+        citaId: ctx.citaId,
+        rut: ctx.cita.rut,
+        pacienteNombre: ctx.cita.nombre,
+        fecha: ctx.cita.fecha,
+        hora: ctx.cita.hora,
+        modalidad: ctx.cita.modalidad,
+        actividad: ctx.cita.actividad,
+        profesionalRut: ctx.cita.profesionalRut,
+        profesionalNombre: ctx.cita.profesionalNombre,
+        motivo: motivo,
+        evolucion: evolucion,
+        plan: plan,
+        observaciones: obs,
+        diagnostico: dx,
+        cie10: cie,
+        creadoEn: new Date().toISOString(),
+        creadoPor: (typeof currentUser !== 'undefined' && currentUser) ? currentUser : 'sistema'
+      });
+    }
+    saaSave('encuentros');
+    saaCloseModal('saaModalAtencion');
+    alert('✓ Atención clínica registrada.');
+
+    // Si el modal de ficha está abierto, re-renderizarlo para reflejar el cambio
+    if (window._saaFichaCtx && typeof saaRenderFichaPaciente === 'function') {
+      // Recargar el contexto para refrescar la historia
+      var nuevaCita = (typeof saaAgendaCitasUnidas === 'function')
+        ? saaAgendaCitasUnidas().find(function(x){ return x.id === window._saaFichaCtx.cita.id; })
+        : window._saaFichaCtx.cita;
+      if (nuevaCita) {
+        // Re-buscar historia
+        var historia = saaAgendaCitasUnidas()
+          .filter(function(c){ return c.rut === nuevaCita.rut && c.id !== nuevaCita.id; })
+          .sort(function(a,b){
+            var fa = (a.fecha||'') + ' ' + (a.hora||'');
+            var fb = (b.fecha||'') + ' ' + (b.hora||'');
+            return fa < fb ? 1 : -1;
+          });
+        var totalEnc = historia.filter(function(c){ return c.estado === 'REALIZADA'; }).length;
+        window._saaFichaCtx = {cita: nuevaCita, paciente: window._saaFichaCtx.paciente, historia: historia, totalEncuentros: totalEnc};
+        saaRenderFichaPaciente('__use_last__', null, null, null, 'historia');
+      }
+    }
+  };
+
+  // Devuelve el encuentro clínico asociado a una citaId, o null
+  window.saaGetEncuentroPorCita = function(citaId) {
+    return (SAA.encuentros || []).find(function(e){ return e.citaId === citaId; }) || null;
+  };
+
+  // Devuelve todos los encuentros de un RUT, ordenados desc por fecha
+  window.saaGetEncuentrosPorRut = function(rut) {
+    if (!rut) return [];
+    return (SAA.encuentros || [])
+      .filter(function(e){ return e.rut === rut; })
+      .sort(function(a,b){
+        var fa = (a.fecha||'') + ' ' + (a.hora||'');
+        var fb = (b.fecha||'') + ' ' + (b.hora||'');
+        return fa < fb ? 1 : -1;
+      });
+  };
   // Modal grande con pestañas Resumen + Historia clínica + acciones de la cita
   window.saaAgendaVerFichaPaciente = function(citaId) {
     var cita = saaAgendaCitasUnidas().find(function(x){ return x.id === citaId; });
@@ -13538,6 +13942,51 @@ window.addEventListener('appinstalled', function() {
       else if (c.estado === 'AGENDADA')  estilo = 'background:#dbeafe; color:#1e40af;';
       else                                estilo = 'background:#e5e7eb; color:#374151;';
 
+      var idSafe = String(c.id).replace(/'/g, "\\'");
+      // ¿Hay un encuentro clínico registrado para esta cita?
+      var enc = (typeof saaGetEncuentroPorCita === 'function') ? saaGetEncuentroPorCita(c.id) : null;
+
+      var detalleClinico = '';
+      if (enc && (enc.motivo || enc.evolucion || enc.plan || enc.observaciones || enc.diagnostico)) {
+        detalleClinico += '<div style="margin-top:10px; padding-top:10px; border-top:1px dashed #e5e7eb;">';
+        if (enc.diagnostico) {
+          detalleClinico += '<div style="font-size:11px; color:#6b7280; margin-bottom:6px;">' +
+            (enc.cie10 ? '<strong style="color:#1565c0;">' + enc.cie10 + '</strong> · ' : '') +
+            '<span style="color:#374151;">' + enc.diagnostico + '</span>' +
+          '</div>';
+        }
+        if (enc.motivo) {
+          detalleClinico += '<div style="font-size:12px; color:#374151; margin-top:4px;"><strong>Motivo:</strong> ' + enc.motivo.replace(/\n/g,'<br>') + '</div>';
+        }
+        if (enc.evolucion) {
+          detalleClinico += '<div style="font-size:12px; color:#374151; margin-top:4px;"><strong>Evolución:</strong> ' + enc.evolucion.replace(/\n/g,'<br>') + '</div>';
+        }
+        if (enc.plan) {
+          detalleClinico += '<div style="font-size:12px; color:#374151; margin-top:4px;"><strong>Plan:</strong> ' + enc.plan.replace(/\n/g,'<br>') + '</div>';
+        }
+        if (enc.observaciones) {
+          detalleClinico += '<div style="font-size:12px; color:#374151; margin-top:4px; font-style:italic; background:#fffbeb; padding:6px 8px; border-radius:6px; border-left:3px solid #f59e0b;">' +
+            '📝 <strong>Observaciones:</strong> ' + enc.observaciones.replace(/\n/g,'<br>') +
+          '</div>';
+        }
+        // Botón para editar atención
+        detalleClinico += '<div style="margin-top:8px; text-align:right;">' +
+          '<button onclick="saaAbrirAtencion(\'' + idSafe + '\')" ' +
+                  'style="background:#fff; border:1px solid #1565c0; color:#1565c0; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer;">' +
+            '✏️ Editar atención' +
+          '</button>' +
+        '</div>';
+        detalleClinico += '</div>';
+      } else if (c.estado === 'REALIZADA') {
+        // Cita realizada pero sin atención registrada → ofrecer registrar
+        detalleClinico = '<div style="margin-top:10px; padding-top:10px; border-top:1px dashed #e5e7eb; text-align:right;">' +
+          '<button onclick="saaAbrirAtencion(\'' + idSafe + '\')" ' +
+                  'style="background:#1565c0; color:#fff; border:none; padding:5px 12px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer;">' +
+            '📋 Registrar atención clínica' +
+          '</button>' +
+        '</div>';
+      }
+
       html += '<div style="background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:14px 16px; margin-bottom:10px;">' +
         '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:6px;">' +
           '<div>' +
@@ -13551,7 +14000,8 @@ window.addEventListener('appinstalled', function() {
           (c.actividad || '—') +
         '</div>' +
         (c.profesionalNombre ? '<div style="font-size:11px; color:#6b7280; margin-top:2px;">👤 ' + c.profesionalNombre + '</div>' : '') +
-        (c.motivo ? '<div style="font-size:12px; color:#374151; margin-top:6px;"><strong>Motivo:</strong> ' + c.motivo + '</div>' : '') +
+        (c.motivo && !enc ? '<div style="font-size:12px; color:#374151; margin-top:6px;"><strong>Motivo cita:</strong> ' + c.motivo + '</div>' : '') +
+        detalleClinico +
       '</div>';
     });
 
@@ -13569,19 +14019,29 @@ window.addEventListener('appinstalled', function() {
 
     var botones = '';
 
+    // ¿Ya hay un encuentro clínico registrado para esta cita?
+    var tieneEncuentro = (typeof saaGetEncuentroPorCita === 'function') && saaGetEncuentroPorCita(cita.id);
+
     // Solo si está AGENDADA mostrar los 4 cambios de estado
     if (cita.estado === 'AGENDADA') {
+      // El botón "Realizada" ahora abre la atención clínica (marca + registra)
       botones =
-        '<button onclick="saaAgendaMarcar(\'' + idSafe + '\',\'REALIZADA\'); saaCloseModal(\'saaModalFichaPaciente\'); saaCloseModal(\'saaModalDiaCitas\'); saaAgendaCalRender();" ' +
-                'style="' + estiloBtn + ' background:#059669;">✓ Realizada</button>' +
+        '<button onclick="saaMarcarRealizadaConAtencion(\'' + idSafe + '\')" ' +
+                'style="' + estiloBtn + ' background:#059669;" title="Marca la cita como realizada y abre el formulario de atención clínica">✓ Realizada</button>' +
         '<button onclick="saaAgendaMarcar(\'' + idSafe + '\',\'NSP\'); saaCloseModal(\'saaModalFichaPaciente\'); saaCloseModal(\'saaModalDiaCitas\'); saaAgendaCalRender();" ' +
                 'style="' + estiloBtn + ' background:#6b7280;">✕ NSP</button>' +
         '<button onclick="saaAgendaMarcar(\'' + idSafe + '\',\'AUSENTE\'); saaCloseModal(\'saaModalFichaPaciente\'); saaCloseModal(\'saaModalDiaCitas\'); saaAgendaCalRender();" ' +
                 'style="' + estiloBtn + ' background:#dc2626;">⊘ Ausente</button>' +
         '<button onclick="saaAgendaMarcar(\'' + idSafe + '\',\'REAGENDAR\'); saaCloseModal(\'saaModalFichaPaciente\'); saaCloseModal(\'saaModalDiaCitas\'); saaAgendaCalRender();" ' +
                 'style="' + estiloBtn + ' background:#7c3aed;">↻ Reagendar / L. Espera</button>';
+    } else if (cita.estado === 'REALIZADA') {
+      // Citas ya realizadas: ofrecer ver/editar la atención
+      var textoBoton = tieneEncuentro ? '📋 Ver/editar atención' : '📋 Registrar atención';
+      botones = '<button onclick="saaAbrirAtencion(\'' + idSafe + '\')" ' +
+                'style="' + estiloBtn + ' background:#1565c0;">' + textoBoton + '</button>' +
+        '<div style="color:#6b7280; font-size:12px; margin-left:8px;">Esta cita ya fue marcada como REALIZADA.</div>';
     } else {
-      // Si no está AGENDADA, mostrar info del estado
+      // Si no está AGENDADA ni REALIZADA, mostrar info del estado
       botones = '<div style="flex:1; color:#6b7280; font-size:12px;">' +
         'Esta cita ya fue gestionada (' + cita.estado + '). Solo se puede eliminar.' +
       '</div>';
@@ -13595,6 +14055,23 @@ window.addEventListener('appinstalled', function() {
       botones +
     '</div>';
   }
+
+  // Marca la cita como REALIZADA y abre inmediatamente el modal de atención clínica
+  window.saaMarcarRealizadaConAtencion = function(citaId) {
+    if (typeof saaAgendaMarcar === 'function') {
+      saaAgendaMarcar(citaId, 'REALIZADA');
+    }
+    // Cerrar modal de día y abrir atención
+    if (typeof saaCloseModal === 'function') {
+      saaCloseModal('saaModalFichaPaciente');
+      saaCloseModal('saaModalDiaCitas');
+    }
+    if (typeof saaAgendaCalRender === 'function') saaAgendaCalRender();
+    // Pequeño delay para que se cierren los modales antes de abrir el de atención
+    setTimeout(function(){
+      saaAbrirAtencion(citaId);
+    }, 150);
+  };
 
   // Wrapper para re-renderizar la pestaña sin perder el contexto
   var _saaRenderFichaOriginal = window.saaRenderFichaPaciente;
