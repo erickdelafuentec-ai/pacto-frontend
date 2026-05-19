@@ -13874,6 +13874,13 @@ window.addEventListener('appinstalled', function() {
   // Pestaña Resumen
   function saaFichaTabResumen(cita, paciente, totalEncuentros) {
     var modIcon = {'Presencial':'🩺','Telemedicina':'📡','Domiciliaria':'🏠'}[cita.modalidad] || '·';
+    var idSafe = String(cita.id).replace(/'/g, "\\'");
+
+    // Cargar la observación ya guardada (si existe) para esta cita
+    var encActual = (typeof saaGetEncuentroPorCita === 'function') ? saaGetEncuentroPorCita(cita.id) : null;
+    var obsGuardada = encActual && encActual.observaciones ? encActual.observaciones : '';
+    var obsEscaped = obsGuardada.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
     return '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:14px; margin-bottom:18px;">' +
 
       // Cita actual destacada
@@ -13907,8 +13914,91 @@ window.addEventListener('appinstalled', function() {
         '</div>' +
       '</div>' +
 
+    '</div>' +
+
+    // ─── Cuadro de Observación rápida ───
+    '<div style="background:#fffbeb; border:1px solid #fcd34d; border-radius:10px; padding:14px 16px; margin-bottom:14px;">' +
+      '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">' +
+        '<div style="font-size:12px; font-weight:700; color:#854f0b; letter-spacing:0.5px;">📝 OBSERVACIÓN / COMENTARIO</div>' +
+        (obsGuardada ? '<span style="font-size:10px; color:#15803d; font-weight:700;">✓ Guardado</span>' : '') +
+      '</div>' +
+      '<textarea id="saaFichaObsRapida" rows="3" ' +
+              'placeholder="Escribe aquí cualquier observación o comentario sobre el paciente o esta cita..." ' +
+              'style="width:100%; padding:10px 12px; border:1px solid #fcd34d; border-radius:6px; ' +
+              'background:#fff; font-size:13px; color:#1f2937; resize:vertical; ' +
+              'font-family:inherit; line-height:1.5; box-sizing:border-box;">' + obsEscaped + '</textarea>' +
+      '<div style="display:flex; gap:8px; margin-top:8px;">' +
+        '<button onclick="saaFichaGuardarObsRapida(\'' + idSafe + '\')" ' +
+                'style="background:#854f0b; color:#fff; border:none; padding:8px 14px; border-radius:6px; ' +
+                'font-size:12px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:4px;">' +
+          '💾 Guardar observación' +
+        '</button>' +
+        '<button onclick="saaAbrirAtencion(\'' + idSafe + '\')" ' +
+                'style="background:#fff; color:#1565c0; border:1px solid #1565c0; padding:8px 14px; border-radius:6px; ' +
+                'font-size:12px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:4px;">' +
+          '📋 Atención clínica completa' +
+        '</button>' +
+        '<span style="font-size:10px; color:#854f0b; align-self:center; font-style:italic;">' +
+          'Aparece en la historia clínica del paciente' +
+        '</span>' +
+      '</div>' +
     '</div>';
   }
+
+  // Guarda la observación rápida desde la ficha (sin cerrar el modal)
+  window.saaFichaGuardarObsRapida = function(citaId) {
+    var ta = document.getElementById('saaFichaObsRapida');
+    if (!ta) return;
+    var txt = (ta.value || '').trim();
+    var cita = (typeof saaAgendaCitasUnidas === 'function')
+      ? saaAgendaCitasUnidas().find(function(x){ return x.id === citaId; })
+      : null;
+    if (!cita) { alert('No se encontró la cita.'); return; }
+
+    if (!SAA.encuentros) SAA.encuentros = [];
+    var enc = SAA.encuentros.find(function(e){ return e.citaId === citaId; });
+    if (enc) {
+      enc.observaciones = txt;
+      enc.actualizadoEn = new Date().toISOString();
+    } else {
+      SAA.encuentros.push({
+        id: 'enc_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+        citaId: citaId,
+        rut: cita.rut,
+        pacienteNombre: cita.nombre,
+        fecha: cita.fecha,
+        hora: cita.hora,
+        modalidad: cita.modalidad,
+        actividad: cita.actividad,
+        profesionalRut: cita.profesionalRut,
+        profesionalNombre: cita.profesionalNombre,
+        motivo: '',
+        evolucion: '',
+        plan: '',
+        observaciones: txt,
+        diagnostico: '',
+        cie10: '',
+        creadoEn: new Date().toISOString(),
+        creadoPor: (typeof currentUser !== 'undefined' && currentUser) ? currentUser : 'sistema'
+      });
+    }
+    saaSave('encuentros');
+
+    // Feedback visual rápido sin recargar todo
+    var ta2 = document.getElementById('saaFichaObsRapida');
+    if (ta2) {
+      ta2.style.borderColor = '#16a34a';
+      ta2.style.backgroundColor = '#f0fdf4';
+      setTimeout(function(){
+        ta2.style.borderColor = '#fcd34d';
+        ta2.style.backgroundColor = '#fff';
+      }, 1500);
+    }
+    // Re-renderizar la pestaña Resumen para mostrar "✓ Guardado"
+    if (window._saaFichaCtx && typeof saaRenderFichaPaciente === 'function') {
+      saaRenderFichaPaciente('__use_last__', null, null, null, 'resumen');
+    }
+  };
 
   // Pestaña Historia clínica
   function saaFichaTabHistoria(historia) {
