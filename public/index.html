@@ -13387,13 +13387,12 @@ window.addEventListener('appinstalled', function() {
   window.saaRenderFichaPaciente = function(cita, paciente, historia, totalEncuentros, pestaña) {
     var modal = document.getElementById('saaModalFichaPaciente');
     if (!modal) {
-      // Crear el modal una sola vez
+      // Crear el modal una sola vez usando el mismo sistema que el resto (saa-modal-bg + .open)
       modal = document.createElement('div');
       modal.id = 'saaModalFichaPaciente';
-      modal.className = 'saa-modal';
-      modal.style.cssText = 'display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:99998; align-items:flex-start; justify-content:center; padding:40px 20px; overflow-y:auto;';
-      modal.innerHTML = '<div id="saaModalFichaPacienteInner" style="background:#fff; border-radius:16px; max-width:780px; width:100%; max-height:calc(100vh - 80px); overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,0.4);"></div>';
-      // Cerrar haciendo clic fuera
+      modal.className = 'saa-modal-bg';
+      modal.innerHTML = '<div class="saa-modal" id="saaModalFichaPacienteInner" style="max-width:780px; padding:0; overflow:hidden;"></div>';
+      // Cerrar haciendo clic en el fondo (fuera del contenido)
       modal.addEventListener('click', function(e){
         if (e.target === modal) saaCloseModal('saaModalFichaPaciente');
       });
