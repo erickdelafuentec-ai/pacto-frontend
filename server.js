@@ -1,5 +1,6 @@
 const express = require('express');
 const path = require('path');
+const { setupRealtime, broadcastChange } = require('./sse-realtime');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -40,6 +41,10 @@ const ALLOWED_KEYS = [
   'paCalEventos',      // Eventos del calendario (reuniones, fechas importantes)
   'saaChats',          // Conversaciones de chat WhatsApp por paciente
   'saaNumeroPacto',    // Número WhatsApp institucional del programa
+  // ── Keys de overrides y atenciones clínicas ──
+  'saa_citas_hist_override',   // Cambios de estado en citas históricas (HIST)
+  'saa_pacientes_override',    // Teléfonos y datos editados de pacientes
+  'saaEncuentros',             // Atenciones clínicas (motivo, evolución, plan, obs)
 ];
 
 const DEFAULT_STORE = {};
@@ -124,6 +129,9 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(PUBLIC_DIR, { extensions: ['html'] }));
 
+// ── Endpoint SSE (sincronización en tiempo real) ──────────────────────────────
+setupRealtime(app);
+
 // ── Endpoints ──────────────────────────────────────────────────────────────────
 app.get('/health', async (_req, res) => {
   const status = {
@@ -162,7 +170,10 @@ app.post('/api/storage/:key', async (req, res) => {
   }
   try {
     const value = typeof req.body.value === 'undefined' ? [] : req.body.value;
+    const sender = req.body.sender || null;
     await writeKey(key, value);
+    // Notificar a todos los clientes conectados (excepto al que originó el cambio)
+    broadcastChange(key, value, sender);
     res.json({ ok: true, key, items: Array.isArray(value) ? value.length : null });
   } catch (e) {
     console.error(`POST /api/storage/${key} error:`, e.message);
@@ -175,6 +186,8 @@ app.post('/api/storage', async (req, res) => {
   try {
     const updates = Object.keys(incoming).filter(k => ALLOWED_KEYS.includes(k));
     await Promise.all(updates.map(k => writeKey(k, incoming[k])));
+    // Notificar cada cambio
+    updates.forEach(k => broadcastChange(k, incoming[k], null));
     res.json({ ok: true, updated: updates });
   } catch (e) {
     console.error('POST /api/storage error:', e.message);
