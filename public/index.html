@@ -4362,6 +4362,41 @@ body.has-shell .back-btn { display: none !important; }
     </div>
 
     <!-- ════════ MODAL: Citas del día (al hacer click en una celda) ════════ -->
+    <!-- Modal: Editar datos básicos del paciente -->
+    <div class="saa-modal-bg" id="saaModalEditarPaciente">
+      <div class="saa-modal" style="max-width:520px;">
+        <div class="saa-modal-head">
+          <h3>✏️ Editar paciente</h3>
+          <button class="saa-modal-close" onclick="saaCloseModal('saaModalEditarPaciente')">✕</button>
+        </div>
+        <div class="saa-modal-body">
+          <div id="saaEditPacInfo" style="background:#eff6ff; border-left:4px solid #1565c0; padding:10px 14px; border-radius:6px; margin-bottom:14px; font-size:12px; color:#1e40af;"></div>
+          <div class="saa-row">
+            <div>
+              <label class="saa-label">Edad</label>
+              <input class="saa-input" type="number" id="saaEditPacEdad" min="0" max="120" placeholder="Ej: 45">
+            </div>
+            <div>
+              <label class="saa-label">Comuna</label>
+              <input class="saa-input" id="saaEditPacComuna" placeholder="Ej: Concepción">
+            </div>
+          </div>
+          <label class="saa-label">Dirección</label>
+          <input class="saa-input" id="saaEditPacDireccion" placeholder="Calle, número, sector">
+          <label class="saa-label">Teléfono</label>
+          <input class="saa-input" type="tel" id="saaEditPacTel" placeholder="+56 9 1234 5678">
+
+          <div style="background:#fef3c7; border-left:3px solid #f59e0b; padding:8px 12px; border-radius:6px; margin-top:14px; font-size:11px; color:#854f0b;">
+            ⚠️ Los cambios se sincronizan automáticamente con todos los dispositivos del equipo.
+          </div>
+        </div>
+        <div class="saa-modal-foot">
+          <button class="saa-btn saa-btn-ghost" onclick="saaCloseModal('saaModalEditarPaciente')">Cancelar</button>
+          <button class="saa-btn saa-btn-primary" onclick="saaGuardarEditPaciente()">💾 Guardar cambios</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal: Registrar atención clínica (Motivo / Evolución / Plan + Observaciones) -->
     <div class="saa-modal-bg" id="saaModalAtencion">
       <div class="saa-modal" style="max-width:680px;">
@@ -12688,6 +12723,7 @@ window.addEventListener('appinstalled', function() {
     if (ov.telefono !== undefined) p.telefono = ov.telefono;
     if (ov.direccion !== undefined) p.direccion = ov.direccion;
     if (ov.comuna !== undefined) p.comuna = ov.comuna;
+    if (ov.edad !== undefined) p.edad = ov.edad;
   }
 
   // Guarda un cambio de campo en el override del paciente y lo sincroniza a Railway
@@ -13325,8 +13361,34 @@ window.addEventListener('appinstalled', function() {
     // RUT: el sistema viejo guardaba el cuerpo y el dv por separado
     var rut = v.rut || '';
     if (v.dv && rut && rut.indexOf('-') === -1) rut = rut + '-' + v.dv;
+
+    // ID ESTABLE: generamos siempre el mismo id para la misma cita.
+    // Usamos: RUT + fecha + hora + actividad + profesional como huella única.
+    // Esto evita que el id cambie en cada recarga (Math.random no servía).
+    var idEstable;
+    if (v.id) {
+      idEstable = 'old_' + v.id;
+    } else {
+      // Concatenar campos identificatorios y generar un hash simple
+      var huella = [
+        (rut || '').toLowerCase(),
+        v.fecha || '',
+        v.hora || '',
+        (v.actividad || '').toLowerCase(),
+        (v.profesional || '').toLowerCase(),
+        nombre.toLowerCase()
+      ].join('|');
+      // Hash determinista (djb2) — siempre da el mismo string para el mismo input
+      var hash = 5381;
+      for (var i = 0; i < huella.length; i++) {
+        hash = ((hash << 5) + hash) + huella.charCodeAt(i);
+        hash = hash & hash; // forzar 32 bits
+      }
+      idEstable = 'old_' + (hash >>> 0).toString(36); // unsigned, base 36
+    }
+
     return {
-      id: 'old_' + (v.id || Math.random().toString(36).slice(2)),
+      id: idEstable,
       _origen: 'historico',     // marca para distinguir en la UI
       _viejo: v,                // referencia al original
       rut: rut,
@@ -13601,8 +13663,133 @@ window.addEventListener('appinstalled', function() {
   };
 
   // ═══════════════════════════════════════════════════════════════
-  // HISTORIA CLÍNICA — Buscador por RUT (módulo independiente)
+  // EDITAR PACIENTE — Datos básicos (edad, comuna, dirección, teléfono)
   // ═══════════════════════════════════════════════════════════════
+
+  // Abre el modal de edición con los datos actuales del paciente
+  window.saaAbrirEditarPaciente = function(rut) {
+    if (!rut) { alert('No se identificó al paciente.'); return; }
+
+    // Buscar datos actuales del paciente: HGGB → SAA local → citas → espera
+    var pac = { rut: rut, nombre: '', edad: '', comuna: '', direccion: '', telefono: '' };
+    if (window.HGGB_PAC_ready && typeof window.hggbBuscarPorRut === 'function') {
+      var hggb = window.hggbBuscarPorRut(rut);
+      if (hggb) {
+        pac.nombre = hggb.n; pac.edad = hggb.e; pac.comuna = hggb.c;
+        pac.direccion = hggb.d; pac.telefono = hggb.t;
+      }
+    }
+    // Si no está en HGGB, buscar en citas o espera
+    if (!pac.nombre) {
+      var todasCitas = (typeof saaAgendaCitasUnidas === 'function') ? saaAgendaCitasUnidas() : (SAA.citas || []);
+      var c = todasCitas.find(function(x){ return x.rut === rut; });
+      if (c) {
+        pac.nombre = c.nombre; pac.edad = c.edad; pac.comuna = c.comuna;
+        pac.direccion = c.direccion; pac.telefono = c.telefono;
+      } else {
+        var e = (SAA.espera || []).find(function(x){ return x.rut === rut; });
+        if (e) {
+          pac.nombre = e.nombre; pac.edad = e.edad; pac.comuna = e.comuna;
+          pac.direccion = e.direccion; pac.telefono = e.telefono;
+        }
+      }
+    }
+    // Aplicar overrides existentes
+    if (typeof saaAplicarOverridePaciente === 'function') {
+      saaAplicarOverridePaciente(pac);
+    }
+
+    // Llenar el modal
+    document.getElementById('saaEditPacInfo').innerHTML =
+      '<strong>' + (pac.nombre || '(sin nombre)') + '</strong><br>' +
+      'RUT: ' + pac.rut;
+    document.getElementById('saaEditPacEdad').value      = pac.edad      || '';
+    document.getElementById('saaEditPacComuna').value    = pac.comuna    || '';
+    document.getElementById('saaEditPacDireccion').value = pac.direccion || '';
+    document.getElementById('saaEditPacTel').value       = pac.telefono  || '';
+
+    // Guardar el RUT en contexto
+    window._saaEditPacCtx = { rut: rut, paciente: pac };
+
+    saaOpenModal('saaModalEditarPaciente');
+    setTimeout(function(){
+      var inp = document.getElementById('saaEditPacEdad');
+      if (inp) inp.focus();
+    }, 100);
+  };
+
+  // Guarda los cambios del modal de edición usando el sistema de overrides
+  window.saaGuardarEditPaciente = function() {
+    var ctx = window._saaEditPacCtx;
+    if (!ctx || !ctx.rut) { alert('No hay paciente seleccionado.'); return; }
+
+    var edad      = (document.getElementById('saaEditPacEdad').value || '').trim();
+    var comuna    = (document.getElementById('saaEditPacComuna').value || '').trim();
+    var direccion = (document.getElementById('saaEditPacDireccion').value || '').trim();
+    var telefono  = (document.getElementById('saaEditPacTel').value || '').trim();
+
+    // Validación de teléfono: si tiene contenido, mínimo 8 dígitos
+    if (telefono && telefono.replace(/\D/g,'').length < 8) {
+      alert('⚠️ El teléfono parece muy corto.\nIngresa al menos 8 dígitos o déjalo vacío.');
+      return;
+    }
+    // Validación de edad
+    if (edad && (isNaN(edad) || edad < 0 || edad > 120)) {
+      alert('⚠️ La edad debe ser un número entre 0 y 120.');
+      return;
+    }
+
+    // Guardar cada campo en el sistema de overrides (que sincroniza con Railway)
+    if (typeof saaGuardarOverridePaciente === 'function') {
+      saaGuardarOverridePaciente(ctx.rut, 'edad', edad);
+      saaGuardarOverridePaciente(ctx.rut, 'comuna', comuna);
+      saaGuardarOverridePaciente(ctx.rut, 'direccion', direccion);
+      saaGuardarOverridePaciente(ctx.rut, 'telefono', telefono);
+    }
+
+    // Actualizar también el chat si existe (para coherencia inmediata)
+    if (window.SAA && SAA.chats && SAA.chats[ctx.rut]) {
+      SAA.chats[ctx.rut].telefono = telefono;
+      if (typeof saaChatSave === 'function') {
+        try { saaChatSave(); } catch(e){}
+      }
+    }
+
+    saaCloseModal('saaModalEditarPaciente');
+    alert('✓ Datos del paciente actualizados.\nLos cambios se sincronizarán con todos los dispositivos.');
+
+    // Refrescar la ficha si está abierta
+    if (window._saaFichaCtx && typeof saaRenderFichaPaciente === 'function') {
+      // Aplicar el override al paciente cargado en la ficha
+      var p = window._saaFichaCtx.paciente;
+      if (p && p.rut === ctx.rut) {
+        if (typeof saaAplicarOverridePaciente === 'function') {
+          saaAplicarOverridePaciente(p);
+        }
+        saaRenderFichaPaciente('__use_last__', null, null, null, 'resumen');
+      }
+    }
+
+    // Si está en la pantalla de Historia Clínica, re-renderizar
+    if (typeof saaHCBuscar === 'function' && document.getElementById('saaHCRut') &&
+        document.getElementById('saaHCRut').value.trim() === ctx.rut) {
+      saaHCBuscar();
+    }
+
+    // Si está en Dación con este paciente cargado, refrescar
+    if (typeof dacionPaciente !== 'undefined' && dacionPaciente && dacionPaciente.rut === ctx.rut) {
+      if (typeof saaAplicarOverridePaciente === 'function') {
+        saaAplicarOverridePaciente(dacionPaciente);
+      }
+      if (typeof saaDacionRenderPaciente === 'function') saaDacionRenderPaciente();
+    }
+  };
+
+  // ═══════════════════════════════════════════════════════════════
+  // FIN — Editar paciente
+  // ═══════════════════════════════════════════════════════════════
+
+
 
   window.saaHCBuscar = function() {
     var inp = document.getElementById('saaHCRut');
@@ -13705,9 +13892,14 @@ window.addEventListener('appinstalled', function() {
     var sexoTxt = paciente.sexo === 'F' ? '♀ Femenino' : (paciente.sexo === 'M' ? '♂ Masculino' : '—');
 
     // Encabezado tipo ficha (igual al modal)
+    var rutSafe = String(paciente.rut || '').replace(/'/g, "\\'");
     var html = '<div style="background:#fff; border-radius:14px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.04); border:1px solid var(--pa-gray-200);">' +
       // Header
-      '<div style="background:linear-gradient(135deg, #0d47a1 0%, #1565c0 100%); padding:24px; color:#fff;">' +
+      '<div style="background:linear-gradient(135deg, #0d47a1 0%, #1565c0 100%); padding:24px; color:#fff; position:relative;">' +
+        '<button onclick="saaAbrirEditarPaciente(\'' + rutSafe + '\')" ' +
+                'style="position:absolute; top:14px; right:14px; background:rgba(255,255,255,0.2); border:none; color:#fff; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:4px;">' +
+          '✏️ Editar paciente' +
+        '</button>' +
         '<div style="display:flex; gap:16px; align-items:flex-start;">' +
           '<div style="width:64px; height:64px; background:#f59e0b; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:700; color:#fff; flex-shrink:0;">' + iniciales + '</div>' +
           '<div style="flex:1;">' +
@@ -13981,10 +14173,17 @@ window.addEventListener('appinstalled', function() {
     var pacienteJson = JSON.stringify({cita:cita, paciente:paciente, historia:historia, totalEncuentros:totalEncuentros}).replace(/'/g, "\\'");
 
     // Header con datos del paciente
+    var rutSafe = String(paciente.rut || '').replace(/'/g, "\\'");
     var header =
       '<div style="background:linear-gradient(135deg, #0d47a1 0%, #1565c0 100%); padding:24px; border-radius:16px 16px 0 0; color:#fff; position:relative;">' +
-        '<button onclick="saaCloseModal(\'saaModalFichaPaciente\')" ' +
-                'style="position:absolute; top:16px; right:16px; background:rgba(255,255,255,0.2); border:none; color:#fff; width:32px; height:32px; border-radius:50%; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center;">✕</button>' +
+        '<div style="position:absolute; top:14px; right:14px; display:flex; gap:8px;">' +
+          '<button onclick="saaAbrirEditarPaciente(\'' + rutSafe + '\')" ' +
+                  'style="background:rgba(255,255,255,0.2); border:none; color:#fff; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:4px;">' +
+            '✏️ Editar paciente' +
+          '</button>' +
+          '<button onclick="saaCloseModal(\'saaModalFichaPaciente\')" ' +
+                  'style="background:rgba(255,255,255,0.2); border:none; color:#fff; width:32px; height:32px; border-radius:50%; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center;">✕</button>' +
+        '</div>' +
         '<div style="display:flex; gap:16px; align-items:flex-start;">' +
           '<div style="width:64px; height:64px; background:#f59e0b; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:700; color:#fff; flex-shrink:0;">' +
             iniciales +
